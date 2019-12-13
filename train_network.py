@@ -90,18 +90,24 @@ def main():
         # Select the dataset.
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
-                                              args.dataset_dir)
-
-        print('dataset: ', dataset)
+                                              args.dataset_dir).map(resize_image)
+        print('\nBefore batching: ', dataset)
+        batched_dataset = dataset.batch(2)
+        # batched_dataset = dataset.padded_batch(3)
+        print('\nAfter batching : ', batched_dataset)
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
-        print('iterator: ', iterator)
+        iterator1 = tf.compat.v1.data.make_one_shot_iterator(batched_dataset)
+        # print('\niterator: ', iterator)
+        print('\nbatched iterator1: ', iterator1)
 
-        difficult, truncated, label, xmin, ymin, xmax, ymax, \
-        channels, image_format, height, width, image, shape = iterator.get_next()
-        print('xmin: ', xmin)
-        print('ymin: ', ymin)
-        # bboxes = tf.stack([xmin, ymin, xmax, ymax])
-        bboxes = tf.transpose([ymin, xmin, ymax, xmax])
+        image, shape, label, bboxes = iterator.get_next()
+        # image, shape, label, bboxes = iterator1.get_next()
+        print('\n## image: ', image)
+        print('## shape: ', shape)
+        print('## label: ', label)
+        print('## bboxes: ', bboxes)
+        print()
+
         image_with_box = draw_bounding_boxes(image, bboxes)
         print('@@ image: ', image)
         print('@@ bboxes: ', bboxes)
@@ -121,17 +127,17 @@ def main():
         #             print(image)
         #     except tf.errors.OutOfRangeError:
         #         pass
-        with tf.Session() as sess:
+        with tf.compat.v1.Session() as sess:
             try:
                 while True:
                     print('\n======================================================\n')
                     _image_with_box = sess.run(image_with_box)
-                    print(_image_with_box[0])
+                    # print(_image_with_box[0])
                     print(_image_with_box.shape)
                     tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
                     img = Image.fromarray(tmp)
                     img.show()
-                    print(tmp)
+                    # print(tmp)
             except tf.errors.OutOfRangeError:
                 pass
 
@@ -347,12 +353,33 @@ def draw_bounding_boxes(image, bboxes):
     # Convert tf.uint8 to tf.float32.
     if image.dtype != tf.float32:
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-    print('#### image: ', image)
-    image = tf.expand_dims(image, axis=0)
-    print('#### image: ', image)
-    bboxes = tf.expand_dims(bboxes, axis=0)
+    print('#####################################')
+    print('$$$$$ draw_bounding_boxes $$$$$')
+    print('before expanding dims')
+    print('#### image ', image.get_shape(), image.get_shape().ndims)
+    print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
+    if image.get_shape().ndims == 3:
+        image = tf.expand_dims(image, axis=0)
+    if bboxes.get_shape().ndims == 2:
+        bboxes = tf.expand_dims(bboxes, axis=0)
+    print('After expanding dims')
+    print('#### image: ', image, image.get_shape(), image.get_shape().ndims)
+    print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
     image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
     return image_with_box
+
+
+def resize_image(image, shape, label, bboxes, size=(300, 300)):
+    with tf.name_scope('resize_image'):
+        image = tf.expand_dims(image, 0)
+        # print(image.get_shape())
+        # batch, height, width, channels = image.get_shape()
+        # print(height, width, channels)
+        image = tf.image.resize(image, size=size,
+                                method=tf.image.ResizeMethod.BILINEAR,
+                                align_corners=False)
+        image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
+        return image, size, label, bboxes
 
 
 if __name__ == '__main__':

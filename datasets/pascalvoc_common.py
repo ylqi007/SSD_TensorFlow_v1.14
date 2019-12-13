@@ -80,10 +80,9 @@ def get_dataset(split_name, dataset_dir, file_pattern):
     file_pattern = os.path.join(dataset_dir, file_pattern % split_name)
     files = glob.glob(file_pattern)
     raw_image_dataset = tf.data.TFRecordDataset(files)  # <TFRecordDatasetV1 shapes: (), types: tf.string>
-    print('raw_image_dataset: ', raw_image_dataset)
 
     parsed_image_dataset = raw_image_dataset.map(_parse_example_function)
-    #
+
     # parsed_feature_dataset = parsed_image_dataset.map(_parse_feature_function)
 
     # return parsed_feature_dataset
@@ -107,7 +106,7 @@ def get_dataset(split_name, dataset_dir, file_pattern):
 def _parse_example_function(example_proto):
     image_features = tf.io.parse_single_example(example_proto, image_features_description)
     image = tf.io.decode_jpeg(image_features['image/raw_data'], channels=3)
-
+    image = tf.image.convert_image_dtype(image, dtype=tf.float32)
     difficult = tf.sparse.to_dense(image_features['image/object/bbox/difficult'])
     truncated = tf.sparse.to_dense(image_features['image/object/bbox/truncated'])
     label = tf.sparse.to_dense(image_features['image/object/bbox/label'])
@@ -115,15 +114,16 @@ def _parse_example_function(example_proto):
     ymin = tf.sparse.to_dense(image_features['image/object/bbox/ymin'])
     xmax = tf.sparse.to_dense(image_features['image/object/bbox/xmax'])
     ymax = tf.sparse.to_dense(image_features['image/object/bbox/ymax'])
+    bboxes = tf.transpose([ymin, xmin, ymax, xmax])
     channels = image_features['image/channels']
     image_format = image_features['image/format']
     height = image_features['image/height']
     width = image_features['image/width']
     shape = image_features['image/shape']
 
-    return difficult, truncated, label,\
-           xmin, ymin, xmax, ymax,\
-           channels, image_format, height, width, image, shape
+    # return difficult, truncated, label, bboxes, \
+    #        channels, image_format, height, width, image, shape
+    return image, shape, label, bboxes
 
 
 def _parse_feature_function(_image_features):
