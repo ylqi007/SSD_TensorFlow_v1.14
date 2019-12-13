@@ -16,6 +16,7 @@
 Generic training script that trains a SSD model using a given dataset.
 """
 import argparse
+import numpy as np
 import tensorflow as tf
 from PIL import Image
 
@@ -81,15 +82,6 @@ def main():
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
 
     with tf.Graph().as_default():
-        # Config model_deploy. Keep TF Slim Models structure.
-        # Useful if want to need multiple GPUs and/or servers in the future.
-        # deploy_config = model_deploy.DeploymentConfig(
-        #     num_clones=FLAGS.num_clones,
-        #     clone_on_cpu=FLAGS.clone_on_cpu,
-        #     replica_id=0,
-        #     num_replicas=1,
-        #     num_ps_tasks=0)
-
         # Create global_step.
         with tf.device('/cpu:0'):
             global_step = tf.compat.v1.train.create_global_step()
@@ -102,40 +94,44 @@ def main():
 
         print('dataset: ', dataset)
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
-        # print('iterator: ', iterator)
-        # sample = iterator.get_next()
-        # print('sample: ', sample)
-        # print('samples: ', *sample)
-
-        sample = iterator.get_next()
-        difficult = sample['image/object/bbox/difficult']
-        label = sample['image/object/bbox/label']
-        truncated = sample['image/object/bbox/truncated']
-        xmin = sample['image/object/bbox/xmin']
-        ymin = sample['image/object/bbox/ymin']
-        xmax = sample['image/object/bbox/xmax']
-        ymax = sample['image/object/bbox/ymax']
-        channels = sample['image/channels']
-        _format = sample['image/format']
-        height = sample['image/height']
-        width = sample['image/width']
-        image = sample['image/raw_data']
-        shape = sample['image/shape']
-
-        new_info1 = tf.concat([difficult, truncated, label], axis=0)
         print('iterator: ', iterator)
+
+        difficult, truncated, label, xmin, ymin, xmax, ymax, \
+        channels, image_format, height, width, image, shape = iterator.get_next()
+        print('xmin: ', xmin)
+        print('ymin: ', ymin)
+        # bboxes = tf.stack([xmin, ymin, xmax, ymax])
+        bboxes = tf.transpose([ymin, xmin, ymax, xmax])
+        image_with_box = draw_bounding_boxes(image, bboxes)
+        print('@@ image: ', image)
+        print('@@ bboxes: ', bboxes)
+        print('@@ image_with_box: ', image_with_box)
+        # with tf.Session() as sess:
+        #     try:
+        #         while True:
+        #             print('\n======================================================\n')
+        #             _features = [difficult, truncated, label,
+        #                          xmin, ymin, xmax, ymax,
+        #                          channels, image_format, height, width, image, shape]
+        #             print('_features: ', _features)
+        #             features = sess.run(_features)
+        #             print(_features[-2])
+        #             img = Image.fromarray(features[-2])
+        #             img.show()
+        #             print(image)
+        #     except tf.errors.OutOfRangeError:
+        #         pass
         with tf.Session() as sess:
             try:
                 while True:
                     print('\n======================================================\n')
-                    _features = [difficult, truncated, label,
-                                 xmin, ymin, xmax, ymax,
-                                 channels, _format, height, width, image, shape]
-                    print('_features: ', _features)
-                    features = sess.run(_features)
-                    img = Image.fromarray(features[-2])
+                    _image_with_box = sess.run(image_with_box)
+                    print(_image_with_box[0])
+                    print(_image_with_box.shape)
+                    tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
+                    img = Image.fromarray(tmp)
                     img.show()
-                    print(image)
+                    print(tmp)
             except tf.errors.OutOfRangeError:
                 pass
 
@@ -345,6 +341,18 @@ def main():
         #     save_interval_secs=FLAGS.save_interval_secs,
         #     session_config=config,
         #     sync_optimizer=None)
+
+
+def draw_bounding_boxes(image, bboxes):
+    # Convert tf.uint8 to tf.float32.
+    if image.dtype != tf.float32:
+        image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+    print('#### image: ', image)
+    image = tf.expand_dims(image, axis=0)
+    print('#### image: ', image)
+    bboxes = tf.expand_dims(bboxes, axis=0)
+    image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
+    return image_with_box
 
 
 if __name__ == '__main__':

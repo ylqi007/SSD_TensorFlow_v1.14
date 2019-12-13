@@ -2,3 +2,4 @@
 
 - [x] Convert raw data into tfrecord files.
 - [x] Read data from tfrecord files and display image.
+- [x] Draw bounding boxes.

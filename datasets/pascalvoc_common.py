@@ -90,18 +90,40 @@ def get_dataset(split_name, dataset_dir, file_pattern):
     return parsed_image_dataset
 
 
+# def _parse_example_function(example_proto):
+#     image_features = tf.io.parse_single_example(example_proto, image_features_description)
+#     image_features['image/raw_data'] = tf.io.decode_jpeg(image_features['image/raw_data'], channels=3)
+#     image_features['image/object/bbox/difficult'] = tf.sparse.to_dense(image_features['image/object/bbox/difficult'])
+#     image_features['image/object/bbox/label'] = tf.sparse.to_dense(image_features['image/object/bbox/label'])
+#     image_features['image/object/bbox/truncated'] = tf.sparse.to_dense(image_features['image/object/bbox/truncated'])
+#     image_features['image/object/bbox/xmin'] = tf.sparse.to_dense(image_features['image/object/bbox/xmin'])
+#     image_features['image/object/bbox/ymin'] = tf.sparse.to_dense(image_features['image/object/bbox/ymin'])
+#     image_features['image/object/bbox/xmax'] = tf.sparse.to_dense(image_features['image/object/bbox/xmax'])
+#     image_features['image/object/bbox/ymax'] = tf.sparse.to_dense(image_features['image/object/bbox/ymax'])
+#
+#     return image_features
+
+
 def _parse_example_function(example_proto):
     image_features = tf.io.parse_single_example(example_proto, image_features_description)
-    image_features['image/raw_data'] = tf.io.decode_jpeg(image_features['image/raw_data'], channels=3)
-    image_features['image/object/bbox/difficult'] = tf.sparse.to_dense(image_features['image/object/bbox/difficult'])
-    image_features['image/object/bbox/label'] = tf.sparse.to_dense(image_features['image/object/bbox/label'])
-    image_features['image/object/bbox/truncated'] = tf.sparse.to_dense(image_features['image/object/bbox/truncated'])
-    image_features['image/object/bbox/xmin'] = tf.sparse.to_dense(image_features['image/object/bbox/xmin'])
-    image_features['image/object/bbox/ymin'] = tf.sparse.to_dense(image_features['image/object/bbox/ymin'])
-    image_features['image/object/bbox/xmax'] = tf.sparse.to_dense(image_features['image/object/bbox/xmax'])
-    image_features['image/object/bbox/ymax'] = tf.sparse.to_dense(image_features['image/object/bbox/ymax'])
+    image = tf.io.decode_jpeg(image_features['image/raw_data'], channels=3)
 
-    return image_features
+    difficult = tf.sparse.to_dense(image_features['image/object/bbox/difficult'])
+    truncated = tf.sparse.to_dense(image_features['image/object/bbox/truncated'])
+    label = tf.sparse.to_dense(image_features['image/object/bbox/label'])
+    xmin = tf.sparse.to_dense(image_features['image/object/bbox/xmin'])
+    ymin = tf.sparse.to_dense(image_features['image/object/bbox/ymin'])
+    xmax = tf.sparse.to_dense(image_features['image/object/bbox/xmax'])
+    ymax = tf.sparse.to_dense(image_features['image/object/bbox/ymax'])
+    channels = image_features['image/channels']
+    image_format = image_features['image/format']
+    height = image_features['image/height']
+    width = image_features['image/width']
+    shape = image_features['image/shape']
+
+    return difficult, truncated, label,\
+           xmin, ymin, xmax, ymax,\
+           channels, image_format, height, width, image, shape
 
 
 def _parse_feature_function(_image_features):
