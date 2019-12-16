@@ -21,7 +21,7 @@ import tensorflow as tf
 from PIL import Image
 
 from datasets import dataset_factory
-
+from nets import nets_factory
 
 DATA_FORMAT = 'NCHW'
 
@@ -51,18 +51,16 @@ parser = argparse.ArgumentParser()
 # =========================================================================== #
 # Dataset Flags.
 # =========================================================================== #
-parser.add_argument('--dataset_name',
-                    default='pascalvoc',
+parser.add_argument('--dataset_name', default='pascalvoc',
                     help='The name of dataset to load.')
-parser.add_argument('--num_classes',
-                    default=21,
+parser.add_argument('--num_classes', default=21,
                     help='Number of classes to use in the dataset.')
-parser.add_argument('--dataset_split_name',
-                    default='train',
+parser.add_argument('--dataset_split_name', default='train',
                     help='The name of train/test split.')
-parser.add_argument('--dataset_dir',
-                    default=None,
+parser.add_argument('--dataset_dir', default=None,
                     help='The directory where the tfrecord files are stored.')
+parser.add_argument('--model_name', default='ssd_300_vgg',
+                    help='The name of the architecture to train.')
 
 # =========================================================================== #
 # Fine-Tuning Flags.
@@ -80,29 +78,35 @@ def main():
         raise ValueError('You must supply the dataset directory with --dataset_dir')
 
     tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
-
     with tf.Graph().as_default():
         # Create global_step.
         with tf.device('/cpu:0'):
             global_step = tf.compat.v1.train.create_global_step()
         print(global_step)
 
+        # Get the SSD network and its anchors.
+        ssd_class = nets_factory.get_network(args.model_name)   # ssd_class:  <class 'nets.ssd_vgg_300.SSDNet'>
+        ssd_params = ssd_class.default_params._replace(num_classes=args.num_classes)
+        ssd_net = ssd_class(ssd_params)
+        ssd_shape = ssd_net.params.img_shape
+        ssd_anchors = ssd_net.anchors(ssd_shape)    # ssd_anchors is a list with len equals 6.
+        # print('=============================================')
+        # print('ssd_anchors: ', len(ssd_anchors), type(ssd_anchors))
+        # print(ssd_anchors)
+
         # Select the dataset.
-        resize_image = resize_image_func(output_size=(300, 300))
+        resize_image = resize_image_func(output_size=ssd_shape)
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
                                               args.dataset_dir).map(resize_image)
-        print('\nBefore batching: ', dataset)
+        # print('\nBefore batching: ', dataset)
         # dataset = dataset.batch(2)
-        # batched_dataset = dataset.padded_batch(3)
+        # batched_dataset = dataset.batch(3, drop_remainder=True)
         # print('\nAfter batching : ', batched_dataset)
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
-        # iterator1 = tf.compat.v1.data.make_one_shot_iterator(batched_dataset)
         print('\niterator: ', iterator)
-        # print('\nbatched iterator1: ', iterator1)
 
         image, shape, label, bboxes = iterator.get_next()
-        # image, shape, label, bboxes = iterator1.get_next()
         print('\n## image: ', image)
         print('## shape: ', shape)
         print('## label: ', label)
@@ -138,9 +142,6 @@ def main():
                     tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
                     img = Image.fromarray(tmp)
                     img.show()
-                    # _shapes = sess.run(shape)
-                    # print('_shapes: ', _shapes)
-                    # print(tmp)
             except tf.errors.OutOfRangeError:
                 pass
 
@@ -356,65 +357,39 @@ def draw_bounding_boxes(image, bboxes):
     # Convert tf.uint8 to tf.float32.
     if image.dtype != tf.float32:
         image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-    print('#####################################')
-    print('$$$$$ draw_bounding_boxes $$$$$')
-    print('before expanding dims')
-    print('#### image ', image.get_shape(), image.get_shape().ndims)
-    print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
+    # print('#####################################')
+    # print('$$$$$ draw_bounding_boxes $$$$$')
+    # print('before expanding dims')
+    # print('#### image ', image.get_shape(), image.get_shape().ndims)
+    # print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
     if image.get_shape().ndims == 3:
         image = tf.expand_dims(image, axis=0)
     if bboxes.get_shape().ndims == 2:
         bboxes = tf.expand_dims(bboxes, axis=0)
-    print('After expanding dims')
-    print('#### image: ', image, image.get_shape(), image.get_shape().ndims)
-    print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
+    # print('After expanding dims')
+    # print('#### image: ', image, image.get_shape(), image.get_shape().ndims)
+    # print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
+    print('#########################################################')
+    print('image: ', image)
+    print('bboxes: ', bboxes)
     image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
     return image_with_box
-
-
-# Resize with expanding dims
-# def resize_image(image, shape, label, bboxes, size=(300, 300)):
-#     with tf.name_scope('resize_image'):
-#         image = tf.expand_dims(image, 0)
-#         # print(image.get_shape())
-#         # batch, height, width, channels = image.get_shape()
-#         # print(height, width, channels)
-#         image = tf.image.resize(image, size=size,
-#                                 method=tf.image.ResizeMethod.BILINEAR,
-#                                 align_corners=False)
-#         image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
-#         return image, size, label, bboxes
-
-
-# # Resize without expanding dims
-# def resize_image(image, shape, label, bboxes, size=(300, 300)):
-#     with tf.name_scope('resize_image'):
-#         # image = tf.expand_dims(image, 0)
-#         # print(image.get_shape())
-#         # batch, height, width, channels = image.get_shape()
-#         # print(height, width, channels)
-#         image = tf.image.resize(image, size=size,
-#                                 method=tf.image.ResizeMethod.BILINEAR,
-#                                 align_corners=False)
-#         image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
-#         return image, size, label, bboxes
-#         # return image, shape, label, bboxes
 
 
 # Resize without expanding dims
 def resize_image_func(output_size):
     def _resize_image(image, shape, label, bboxes, size=output_size):
+        """
+        image: image can be a single image or a batch of images.
+        """
         with tf.name_scope('resize_image'):
-            # image = tf.expand_dims(image, 0)
-            # print(image.get_shape())
-            # batch, height, width, channels = image.get_shape()
-            # print(height, width, channels)
             image = tf.image.resize(image, size=size,
                                     method=tf.image.ResizeMethod.BILINEAR,
                                     align_corners=False)
-            image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
-            return image, size, label, bboxes
-        # return image, shape, label, bboxes
+            shape = tf.stack([size[0], size[1], 3])
+            # image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
+            image = tf.reshape(image, shape)
+            return image, shape, label, bboxes
     return _resize_image
 
 
