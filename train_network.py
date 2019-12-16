@@ -88,17 +88,18 @@ def main():
         print(global_step)
 
         # Select the dataset.
+        resize_image = resize_image_func(output_size=(300, 300))
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
                                               args.dataset_dir).map(resize_image)
         print('\nBefore batching: ', dataset)
-        batched_dataset = dataset.batch(2)
+        # dataset = dataset.batch(2)
         # batched_dataset = dataset.padded_batch(3)
-        print('\nAfter batching : ', batched_dataset)
+        # print('\nAfter batching : ', batched_dataset)
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
-        iterator1 = tf.compat.v1.data.make_one_shot_iterator(batched_dataset)
-        # print('\niterator: ', iterator)
-        print('\nbatched iterator1: ', iterator1)
+        # iterator1 = tf.compat.v1.data.make_one_shot_iterator(batched_dataset)
+        print('\niterator: ', iterator)
+        # print('\nbatched iterator1: ', iterator1)
 
         image, shape, label, bboxes = iterator.get_next()
         # image, shape, label, bboxes = iterator1.get_next()
@@ -130,13 +131,15 @@ def main():
         with tf.compat.v1.Session() as sess:
             try:
                 while True:
-                    print('\n======================================================\n')
+                    print('\n=================== In Session =============================\n')
                     _image_with_box = sess.run(image_with_box)
                     # print(_image_with_box[0])
                     print(_image_with_box.shape)
                     tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
                     img = Image.fromarray(tmp)
                     img.show()
+                    # _shapes = sess.run(shape)
+                    # print('_shapes: ', _shapes)
                     # print(tmp)
             except tf.errors.OutOfRangeError:
                 pass
@@ -369,17 +372,50 @@ def draw_bounding_boxes(image, bboxes):
     return image_with_box
 
 
-def resize_image(image, shape, label, bboxes, size=(300, 300)):
-    with tf.name_scope('resize_image'):
-        image = tf.expand_dims(image, 0)
-        # print(image.get_shape())
-        # batch, height, width, channels = image.get_shape()
-        # print(height, width, channels)
-        image = tf.image.resize(image, size=size,
-                                method=tf.image.ResizeMethod.BILINEAR,
-                                align_corners=False)
-        image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
-        return image, size, label, bboxes
+# Resize with expanding dims
+# def resize_image(image, shape, label, bboxes, size=(300, 300)):
+#     with tf.name_scope('resize_image'):
+#         image = tf.expand_dims(image, 0)
+#         # print(image.get_shape())
+#         # batch, height, width, channels = image.get_shape()
+#         # print(height, width, channels)
+#         image = tf.image.resize(image, size=size,
+#                                 method=tf.image.ResizeMethod.BILINEAR,
+#                                 align_corners=False)
+#         image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
+#         return image, size, label, bboxes
+
+
+# # Resize without expanding dims
+# def resize_image(image, shape, label, bboxes, size=(300, 300)):
+#     with tf.name_scope('resize_image'):
+#         # image = tf.expand_dims(image, 0)
+#         # print(image.get_shape())
+#         # batch, height, width, channels = image.get_shape()
+#         # print(height, width, channels)
+#         image = tf.image.resize(image, size=size,
+#                                 method=tf.image.ResizeMethod.BILINEAR,
+#                                 align_corners=False)
+#         image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
+#         return image, size, label, bboxes
+#         # return image, shape, label, bboxes
+
+
+# Resize without expanding dims
+def resize_image_func(output_size):
+    def _resize_image(image, shape, label, bboxes, size=output_size):
+        with tf.name_scope('resize_image'):
+            # image = tf.expand_dims(image, 0)
+            # print(image.get_shape())
+            # batch, height, width, channels = image.get_shape()
+            # print(height, width, channels)
+            image = tf.image.resize(image, size=size,
+                                    method=tf.image.ResizeMethod.BILINEAR,
+                                    align_corners=False)
+            image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
+            return image, size, label, bboxes
+        # return image, shape, label, bboxes
+    return _resize_image
 
 
 if __name__ == '__main__':
