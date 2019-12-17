@@ -20,8 +20,11 @@ import numpy as np
 import tensorflow as tf
 from PIL import Image
 
-from datasets import dataset_factory
+import tf_utils
+
 from nets import nets_factory
+from datasets import dataset_factory
+from preprocessing import preprocessing_factory
 
 DATA_FORMAT = 'NCHW'
 
@@ -61,6 +64,9 @@ parser.add_argument('--dataset_dir', default=None,
                     help='The directory where the tfrecord files are stored.')
 parser.add_argument('--model_name', default='ssd_300_vgg',
                     help='The name of the architecture to train.')
+parser.add_argument('--preprocessing_name', default=None,
+                    help='The name of the preprocessing function to use.'
+                         'If left as None, then the model_name is used.')
 
 # =========================================================================== #
 # Fine-Tuning Flags.
@@ -90,15 +96,32 @@ def main():
         ssd_net = ssd_class(ssd_params)
         ssd_shape = ssd_net.params.img_shape
         ssd_anchors = ssd_net.anchors(ssd_shape)    # ssd_anchors is a list with len equals 6.
-        # print('=============================================')
-        # print('ssd_anchors: ', len(ssd_anchors), type(ssd_anchors))
+        print('=============================================')
+        print('#### ssd_anchors: ', len(ssd_anchors), type(ssd_anchors))
         # print(ssd_anchors)
 
+        # Select the preprocessing function.
+        preprocessing_name = args.preprocessing_name or args.model_name
+        image_preprocessing_fn = preprocessing_factory.get_preprocessing(
+            preprocessing_name, is_training=True)
+        # image_preprocessing_fn = image_preprocessing_fn(out_shape=ssd_shape)
         # Select the dataset.
-        resize_image = resize_image_func(output_size=ssd_shape)
+        # resize_image = resize_image_func(output_size=ssd_shape)
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
-                                              args.dataset_dir).map(resize_image)
+                                              args.dataset_dir)     # image, shape, label, bboxes
+        dataset = dataset.map(lambda image, shape, label, bboxes:
+                              image_preprocessing_fn(image, shape, label, bboxes,
+                                                     out_shape=ssd_shape,
+                                                     data_format=DATA_FORMAT))
+        # dataset = dataset.map(resize_image)
+
+        # bboxes_encode = ssd_net.bboxes_encode(anchors=ssd_anchors, scope=None)
+        # dataset = dataset.map(lambda image, shape, label, bboxes:
+        #                       ssd_net.bboxes_encode(label, bboxes, ssd_anchors))
+        # dataset = dataset.batch(2)
+        print('################################################')
+        print('Info of dataset: ', dataset)
         # print('\nBefore batching: ', dataset)
         # dataset = dataset.batch(2)
         # batched_dataset = dataset.batch(3, drop_remainder=True)
@@ -106,10 +129,11 @@ def main():
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
         print('\niterator: ', iterator)
 
-        image, shape, label, bboxes = iterator.get_next()
+        # image, shape, label, bboxes = iterator.get_next()
+        image, labels, bboxes = iterator.get_next()
         print('\n## image: ', image)
-        print('## shape: ', shape)
-        print('## label: ', label)
+        # print('## shape: ', shape)
+        print('## label: ', labels)
         print('## bboxes: ', bboxes)
         print()
 
@@ -117,6 +141,16 @@ def main():
         print('@@ image: ', image)
         print('@@ bboxes: ', bboxes)
         print('@@ image_with_box: ', image_with_box)
+
+        # Encode groundtruth labels and bboxes.
+        # gclasses, glocalisations, gscores = ssd_net.bboxes_encode(label, bboxes, ssd_anchors)
+        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+        # print('Info gclasses: ', len(gclasses))
+        # print('\nInfo glocalisations: ', len(glocalisations))
+        # print('\nInfo gscores: ', len(gscores))
+        # reshaped_info = tf_utils.reshape_list([image, gclasses, glocalisations, gscores])
+        print('====================================================')
+        # print('Info reshaped_info: ', reshaped_info)
         # with tf.Session() as sess:
         #     try:
         #         while True:
@@ -391,6 +425,15 @@ def resize_image_func(output_size):
             image = tf.reshape(image, shape)
             return image, shape, label, bboxes
     return _resize_image
+
+
+# Encode
+def _bboxes_encode(func=None, anchors=None, scope=None):
+    if func is None:
+        raise ValueError('You must provide ssd_encode_func')
+    if anchors is None:
+        raise ValueError('You must prove anchors.')
+    return func(anchors=anchors, scope=scope)
 
 
 if __name__ == '__main__':

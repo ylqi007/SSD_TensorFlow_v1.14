@@ -49,7 +49,7 @@ import tensorflow as tf
 
 # import tf_extended as tfe
 # from nets import custom_layers
-# from nets import ssd_common
+from nets import ssd_common
 
 slim = tf.contrib.slim
 
@@ -173,18 +173,17 @@ class SSDNet(object):
                                       self.params.anchor_offset,
                                       dtype)
 
-#     def bboxes_encode(self, labels, bboxes, anchors,
-#                       scope=None):
-#         """Encode labels and bounding boxes.
-#         """
-#         return ssd_common.tf_ssd_bboxes_encode(
-#             labels, bboxes, anchors,
-#             self.params.num_classes,
-#             self.params.no_annotation_label,
-#             ignore_threshold=0.5,
-#             prior_scaling=self.params.prior_scaling,
-#             scope=scope)
-#
+    def bboxes_encode(self, labels, bboxes,
+                      anchors, scope=None,):
+        """Encode labels and bounding boxes.
+        """
+        return ssd_common.tf_ssd_bboxes_encode(labels, bboxes, anchors,
+                                               self.params.num_classes,
+                                               self.params.no_annotation_label,
+                                               ignore_threshold=0.5,
+                                               prior_scaling=self.params.prior_scaling,
+                                               scope=scope)
+
 #     def bboxes_decode(self, feat_localizations, anchors,
 #                       scope='ssd_bboxes_decode'):
 #         """Encode labels and bounding boxes.
