@@ -8,9 +8,11 @@
     - [ ] Anchor for single layer. ==> the ratio of h and w
 - [ ] Preprocessing
     - [x] Crop
-    - [ ] Resize
+    - [x] Resize
+    - [x] Crop
+    - [ ] Permutation
     - [ ] Withen
-    - [ ] Crop
+    
 
 - [ ] Encode anchor boxes的处理步骤:
     - [ ] image_preprocessing_fn ==> 处理单张image

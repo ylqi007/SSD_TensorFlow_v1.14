@@ -97,72 +97,72 @@ def tf_summary_image(image, bboxes, name='image', unwhitened=False):
     tf.summary.image(name, image_with_box)
 
 
-# def apply_with_random_selector(x, func, num_cases):
-#     """Computes func(x, sel), with sel sampled from [0...num_cases-1].
-#     Args:
-#         x: input Tensor.
-#         func: Python function to apply.
-#         num_cases: Python int32, number of cases to sample sel from.
-#     Returns:
-#         The result of func(x, sel), where func receives the value of the
-#         selector as a python integer, but sel is sampled dynamically.
-#     """
-#     sel = tf.random_uniform([], maxval=num_cases, dtype=tf.int32)
-#     # Pass the real x only to one of the func calls.
-#     return control_flow_ops.merge([
-#             func(control_flow_ops.switch(x, tf.equal(sel, case))[1], case)
-#             for case in range(num_cases)])[0]
+def apply_with_random_selector(x, func, num_cases):
+    """Computes func(x, sel), with sel sampled from [0...num_cases-1].
+    Args:
+        x: input Tensor.
+        func: Python function to apply.
+        num_cases: Python int32, number of cases to sample sel from.
+    Returns:
+        The result of func(x, sel), where func receives the value of the
+        selector as a python integer, but sel is sampled dynamically.
+    """
+    sel = tf.random_uniform([], maxval=num_cases, dtype=tf.int32)
+    # Pass the real x only to one of the func calls.
+    return control_flow_ops.merge([
+            func(control_flow_ops.switch(x, tf.equal(sel, case))[1], case)
+            for case in range(num_cases)])[0]
 
 
-# def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
-#     """Distort the color of a Tensor image.
-#     Each color distortion is non-commutative and thus ordering of the color ops
-#     matters. Ideally we would randomly permute the ordering of the color ops.
-#     Rather then adding that level of complication, we select a distinct ordering
-#     of color ops for each preprocessing thread.
-#     Args:
-#         image: 3-D Tensor containing single image in [0, 1].
-#         color_ordering: Python int, a type of distortion (valid values: 0-3).
-#         fast_mode: Avoids slower ops (random_hue and random_contrast)
-#         scope: Optional scope for name_scope.
-#     Returns:
-#         3-D Tensor color-distorted image on range [0, 1]
-#     Raises:
-#         ValueError: if color_ordering not in [0, 3]
-#     """
-#     with tf.name_scope(scope, 'distort_color', [image]):
-#         if fast_mode:
-#             if color_ordering == 0:
-#                 image = tf.image.random_brightness(image, max_delta=32. / 255.)
-#                 image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-#             else:
-#                 image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_brightness(image, max_delta=32. / 255.)
-#         else:
-#             if color_ordering == 0:
-#                 image = tf.image.random_brightness(image, max_delta=32. / 255.)
-#                 image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_hue(image, max_delta=0.2)
-#                 image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-#             elif color_ordering == 1:
-#                 image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_brightness(image, max_delta=32. / 255.)
-#                 image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_hue(image, max_delta=0.2)
-#             elif color_ordering == 2:
-#                 image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_hue(image, max_delta=0.2)
-#                 image = tf.image.random_brightness(image, max_delta=32. / 255.)
-#                 image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-#             elif color_ordering == 3:
-#                 image = tf.image.random_hue(image, max_delta=0.2)
-#                 image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
-#                 image = tf.image.random_brightness(image, max_delta=32. / 255.)
-#             else:
-#                 raise ValueError('color_ordering must be in [0, 3]')
-#         # The random_* ops do not necessarily clamp.
-#         return tf.clip_by_value(image, 0.0, 1.0)
+def distort_color(image, color_ordering=0, fast_mode=True, scope=None):
+    """Distort the color of a Tensor image.
+    Each color distortion is non-commutative and thus ordering of the color ops
+    matters. Ideally we would randomly permute the ordering of the color ops.
+    Rather then adding that level of complication, we select a distinct ordering
+    of color ops for each preprocessing thread.
+    Args:
+        image: 3-D Tensor containing single image in [0, 1].
+        color_ordering: Python int, a type of distortion (valid values: 0-3).
+        fast_mode: Avoids slower ops (random_hue and random_contrast)
+        scope: Optional scope for name_scope.
+    Returns:
+        3-D Tensor color-distorted image on range [0, 1]
+    Raises:
+        ValueError: if color_ordering not in [0, 3]
+    """
+    with tf.name_scope(scope, 'distort_color', [image]):
+        if fast_mode:
+            if color_ordering == 0:
+                image = tf.image.random_brightness(image, max_delta=32. / 255.)
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+            else:
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+                image = tf.image.random_brightness(image, max_delta=32. / 255.)
+        else:
+            if color_ordering == 0:
+                image = tf.image.random_brightness(image, max_delta=32. / 255.)
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+                image = tf.image.random_hue(image, max_delta=0.2)
+                image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+            elif color_ordering == 1:
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+                image = tf.image.random_brightness(image, max_delta=32. / 255.)
+                image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+                image = tf.image.random_hue(image, max_delta=0.2)
+            elif color_ordering == 2:
+                image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+                image = tf.image.random_hue(image, max_delta=0.2)
+                image = tf.image.random_brightness(image, max_delta=32. / 255.)
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+            elif color_ordering == 3:
+                image = tf.image.random_hue(image, max_delta=0.2)
+                image = tf.image.random_saturation(image, lower=0.5, upper=1.5)
+                image = tf.image.random_contrast(image, lower=0.5, upper=1.5)
+                image = tf.image.random_brightness(image, max_delta=32. / 255.)
+            else:
+                raise ValueError('color_ordering must be in [0, 3]')
+        # The random_* ops do not necessarily clamp.
+        return tf.clip_by_value(image, 0.0, 1.0)
 
 
 def distorted_bounding_box_crop(image,
@@ -208,9 +208,8 @@ def distorted_bounding_box_crop(image,
                 area_range=area_range,
                 max_attempts=max_attempts,
                 use_image_if_no_bounding_boxes=True)
-        # print('## distort_bbox: ', distort_bbox)    # Tensor(Name, shape=(1, 1, 4), dtype=float32)
         distort_bbox = distort_bbox[0, 0]           # Tensor(Name, shape=(4,), dtype=float32)
-        # print('## distort_bbox: ', distort_bbox)
+
         # Crop the image to the specified bounding box.
         cropped_image = tf.slice(image, bbox_begin, bbox_size)
         # Restore the shape since the dynamic slice loses 3rd dimension.
@@ -221,12 +220,6 @@ def distorted_bounding_box_crop(image,
         labels, bboxes = tfe.bboxes_filter_overlap(labels, bboxes,
                                                    threshold=BBOX_CROP_OVERLAP,
                                                    assign_negative=False)
-        print('Info cropped_image: ', cropped_image)
-        print('Info labels: ', labels)
-        print('Info bboxes: ', bboxes)
-        print('Info distort_bbox: ', distort_bbox)
-        # image_with_box = tf.image.draw_bounding_boxes(cropped_image, tf.expand_dims(distort_bbox, 0))
-        # return image_with_box, labels, bboxes, distort_bbox
         return cropped_image, labels, bboxes, distort_bbox
 
 
@@ -266,30 +259,33 @@ def preprocess_for_train(image, shape, labels, bboxes,
                                         aspect_ratio_range=CROP_RATIO_RANGE)
 
         # Resize image to output size.
-        # with tf.name_scope('resize_image'):
-        #     dst_image = tf.image.resize_images(dst_image, out_shape,
-        #                                        method=tf.image.ResizeMethod.BILINEAR,
-        #                                        align_corners=False)
-        # tf_summary_image(dst_image, bboxes, 'image_shape_distorted')
+        with tf.name_scope('resize_image'):
+            dst_image = tf.image.resize_images(dst_image, out_shape,
+                                               method=tf.image.ResizeMethod.BILINEAR,
+                                               align_corners=False)
+        tf_summary_image(dst_image, bboxes, 'image_shape_distorted')
 
-        # # Randomly flip the image horizontally.
-        # dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
-        #
-        # # Randomly distort the colors. There are 4 ways to do it.
-        # dst_image = apply_with_random_selector(
-        #         dst_image,
-        #         lambda x, ordering: distort_color(x, ordering, fast_mode),
-        #         num_cases=4)
-        # tf_summary_image(dst_image, bboxes, 'image_color_distorted')
-        #
-        # # Rescale to VGG input scale.
+        # Randomly flip the image horizontally.
+        dst_image, bboxes = tf_image.random_flip_left_right(dst_image, bboxes)
+
+        # Randomly distort the colors. There are 4 ways to do it.
+        dst_image = apply_with_random_selector(
+                dst_image,
+                lambda x, ordering: distort_color(x, ordering, fast_mode),
+                num_cases=4)
+        tf_summary_image(dst_image, bboxes, 'image_color_distorted')
+
+        print('#### dst_image: ', dst_image)
+        print('#### image: ', image)
+        # Rescale to VGG input scale.
         # image = dst_image * 255.
+        image = dst_image
         # image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
-        # # Image data format.
+        # Image data format.
         # if data_format == 'NCHW':
         #     image = tf.transpose(image, perm=(2, 0, 1))
-        # return dst_image, labels, bboxes
-        return dst_image, labels, bboxes
+        print('##$$ image: ', image)
+        return image, labels, bboxes
 
 
 # def preprocess_for_eval(image, labels, bboxes,

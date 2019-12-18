@@ -26,6 +26,7 @@ from nets import nets_factory
 from datasets import dataset_factory
 from preprocessing import preprocessing_factory
 
+# DATA_FORMAT = 'NHWC'    # 'NCHW'
 DATA_FORMAT = 'NCHW'
 
 parser = argparse.ArgumentParser()
@@ -150,30 +151,18 @@ def main():
         # print('\nInfo gscores: ', len(gscores))
         # reshaped_info = tf_utils.reshape_list([image, gclasses, glocalisations, gscores])
         print('====================================================')
-        # print('Info reshaped_info: ', reshaped_info)
-        # with tf.Session() as sess:
-        #     try:
-        #         while True:
-        #             print('\n======================================================\n')
-        #             _features = [difficult, truncated, label,
-        #                          xmin, ymin, xmax, ymax,
-        #                          channels, image_format, height, width, image, shape]
-        #             print('_features: ', _features)
-        #             features = sess.run(_features)
-        #             print(_features[-2])
-        #             img = Image.fromarray(features[-2])
-        #             img.show()
-        #             print(image)
-        #     except tf.errors.OutOfRangeError:
-        #         pass
         with tf.compat.v1.Session() as sess:
             try:
                 while True:
                     print('\n=================== In Session =============================\n')
-                    _image_with_box = sess.run(image_with_box)
-                    # print(_image_with_box[0])
-                    print(_image_with_box.shape)
-                    tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
+                    # _image_with_box = sess.run(image_with_box)
+                    # # print(_image_with_box[0])
+                    # print(_image_with_box.shape, _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
+                    # tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
+                    _image = sess.run(image)
+                    print(type(_image), _image.shape, _image.min(), _image.max())
+                    tmp = (_image * 255).astype(np.uint8)
+                    print(type(tmp), tmp.shape, tmp.min(), tmp.max())
                     img = Image.fromarray(tmp)
                     img.show()
             except tf.errors.OutOfRangeError:

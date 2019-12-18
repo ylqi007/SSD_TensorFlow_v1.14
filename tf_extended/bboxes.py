@@ -149,13 +149,13 @@ def bboxes_resize(bbox_ref, bboxes, name=None):
     # Tensors inputs.
     with tf.name_scope(name, 'bboxes_resize'):
         # Translate.
-        v = tf.stack([bbox_ref[0], bbox_ref[1], bbox_ref[0], bbox_ref[1]])
-        bboxes = bboxes - v
+        v = tf.stack([bbox_ref[0], bbox_ref[1], bbox_ref[0], bbox_ref[1]])  # Starting point
+        bboxes = bboxes - v                                                 # Update reference points
         # Scale.
         s = tf.stack([bbox_ref[2] - bbox_ref[0],
                       bbox_ref[3] - bbox_ref[1],
                       bbox_ref[2] - bbox_ref[0],
-                      bbox_ref[3] - bbox_ref[1]])
+                      bbox_ref[3] - bbox_ref[1]])       # New bounding.
         bboxes = bboxes / s
         return bboxes
 
@@ -412,7 +412,7 @@ def bboxes_filter_overlap(labels, bboxes,
         mask = scores > threshold
         if assign_negative:
             labels = tf.where(mask, labels, -labels)
-            # bboxes = tf.where(mask, bboxes, bboxes)
+            bboxes = tf.where(mask, bboxes, bboxes)
         else:
             labels = tf.boolean_mask(labels, mask)
             bboxes = tf.boolean_mask(bboxes, mask)
@@ -473,8 +473,8 @@ def bboxes_intersection(bbox_ref, bboxes, name=None):
     collection of bounding boxes. Namely, compute the quotient between
     intersection area and box area.
     Args:
-      bbox_ref: (N, 4) or (4,) Tensor with reference bounding box(es).
-      bboxes: (N, 4) Tensor, collection of bounding boxes.
+        bbox_ref: (N, 4) or (4,) Tensor with reference bounding box(es).
+        bboxes: (N, 4) Tensor, collection of bounding boxes.
     Return:
       (N,) Tensor with relative intersection.
     """
