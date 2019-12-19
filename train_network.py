@@ -89,7 +89,7 @@ def main():
         # Create global_step.
         with tf.device('/cpu:0'):
             global_step = tf.compat.v1.train.create_global_step()
-        print(global_step)
+        print('##@@ global_step: ', global_step)    # <tf.Variable 'global_step:0' shape=() dtype=int64_ref>
 
         # Get the SSD network and its anchors.
         ssd_class = nets_factory.get_network(args.model_name)   # ssd_class:  <class 'nets.ssd_vgg_300.SSDNet'>
@@ -97,16 +97,13 @@ def main():
         ssd_net = ssd_class(ssd_params)
         ssd_shape = ssd_net.params.img_shape
         ssd_anchors = ssd_net.anchors(ssd_shape)    # ssd_anchors is a list with len equals 6.
-        print('=============================================')
-        print('#### ssd_anchors: ', len(ssd_anchors), type(ssd_anchors))
-        # print(ssd_anchors)
+        print('##@@ ssd_anchors: ', len(ssd_anchors), type(ssd_anchors))    # ssd_anchors:  6 <class 'list'>
 
         # Select the preprocessing function.
         preprocessing_name = args.preprocessing_name or args.model_name
-        image_preprocessing_fn = preprocessing_factory.get_preprocessing(
-            preprocessing_name, is_training=True)
+        image_preprocessing_fn = preprocessing_factory.get_preprocessing(preprocessing_name,
+                                                                         is_training=True)
         # Select the dataset.
-        # resize_image = resize_image_func(output_size=ssd_shape)
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
                                               args.dataset_dir)     # image, shape, label, bboxes
@@ -114,66 +111,36 @@ def main():
         dataset = dataset.map(lambda image, shape, label, bboxes:
                               image_preprocessing_fn(image, shape, label, bboxes,
                                                      out_shape=ssd_shape,
-                                                     data_format=DATA_FORMAT))
+                                                     data_format=DATA_FORMAT))  # image, labels, bboxes
         print('\n##$$ Dataset after preprocessing: ', dataset, '\n')
         dataset = dataset.map(lambda image, labels, bboxes:
                               ssd_net.bboxes_encode(image, labels, bboxes,
                                                     anchors=ssd_anchors))
         print('\n##$$ Dataset after bboxes_encode: ', dataset, '\n')
-        # bboxes_encode = ssd_net.bboxes_encode(anchors=ssd_anchors, scope=None)
-        # dataset = dataset.map(lambda image, shape, label, bboxes:
-        #                       ssd_net.bboxes_encode(label, bboxes, ssd_anchors))
-        # dataset = dataset.batch(2)
         dataset = dataset.batch(2)
-        print('################################################')
         print('\n##$$ Dataset after batching: ', dataset, '\n')
-        # print('\nBefore batching: ', dataset)
-        # dataset = dataset.batch(2)
-        # batched_dataset = dataset.batch(3, drop_remainder=True)
-        # print('\nAfter batching : ', batched_dataset)
+
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
         print('\niterator: ', iterator)
 
-        # image, shape, label, bboxes = iterator.get_next()
-        # image, labels, bboxes = iterator.get_next()
         r = iterator.get_next()
         print('r after encode: ', r)
-        # print('\n## image: ', image)
-        # print('## shape: ', shape)
-        # print('## label: ', labels)
-        # print('## bboxes: ', bboxes)
         batch_shape = [1] + [len(ssd_anchors)] * 3
         b_image, b_gclasses, b_glocalisations, b_gscores = \
             tf_utils.reshape_list(r, batch_shape)
-        print()
 
         # image_with_box = draw_bounding_boxes(b_image, b_glocalisations)
         print('@@ b_image: ', b_image)
         print('@@ b_gclasses: ', b_gclasses)
-        print('@@ b_gclasses[0]: ', b_gclasses[0])
         print('@@ b_glocalisations: ', b_glocalisations)
         print('@@ b_gscores: ', b_gscores)
 
-        # Encode groundtruth labels and bboxes.
-        # gclasses, glocalisations, gscores = ssd_net.bboxes_encode(label, bboxes, ssd_anchors)
-        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-        # print('Info gclasses: ', len(gclasses))
-        # print('\nInfo glocalisations: ', len(glocalisations))
-        # print('\nInfo gscores: ', len(gscores))
-        # reshaped_info = tf_utils.reshape_list([image, gclasses, glocalisations, gscores])
+        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         print('====================================================')
         with tf.compat.v1.Session() as sess:
             try:
                 while True:
                     print('\n=================== In Session =============================\n')
-                    # _image_with_box = sess.run(image_with_box)
-                    # # print(_image_with_box[0])
-                    # print(type(_image_with_box), _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
-                    # tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
-                    # _image = sess.run(image)
-                    # print(type(_image), _image.shape, _image.min(), _image.max())
-                    # tmp = (_image * 255).astype(np.uint8)
-                    # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
                     # _image_with_box = sess.run(b_image[0])
                     # # print(_image_with_box[0])
                     # print(type(_image_with_box), _image_with_box.shape, _image_with_box.min(), _image_with_box.max())

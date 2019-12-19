@@ -4,20 +4,18 @@
 - [x] Read data from tfrecord files and display image.
 - [x] Draw bounding boxes.
 - [x] Resize image with bounding boxes.
-- [ ] Get anchor boxes.
+- [x] Get anchor boxes.
     - [ ] Anchor for single layer. ==> the ratio of h and w
 - [ ] Preprocessing
     - [x] Crop
     - [x] Resize
-    - [x] Crop
-    - [ ] Permutation
+    - [x] Permutation
     - [ ] Withen
-    
 
-- [ ] Encode anchor boxes的处理步骤:
-    - [ ] image_preprocessing_fn ==> 处理单张image
-    - [ ] ssd_net.bboxes_encode()   ==> 也是处理单张image
-    - [ ] tf_utils.reshape_list ==> 将bboxes_encode之后的几个list进行reshape，
+- [x] Encode anchor boxes的处理步骤:
+    - [x] image_preprocessing_fn ==> 处理单张image
+    - [x] ssd_net.bboxes_encode()   ==> 也是处理单张image
+    - [x] tf_utils.reshape_list ==> 将bboxes_encode之后的几个list进行reshape，
     使每个image处理后都有相同的size， 以便后续的batch。
     
 
