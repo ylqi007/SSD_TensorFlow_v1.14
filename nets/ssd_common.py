@@ -73,7 +73,7 @@ def tf_ssd_bboxes_encode_layer(labels,
         inter_vol = h * w
         union_vol = vol_anchors - inter_vol \
             + (bbox[2] - bbox[0]) * (bbox[3] - bbox[1])
-        jaccard = tf.div(inter_vol, union_vol)
+        jaccard = tf.math.divide(inter_vol, union_vol)
         return jaccard
 
     def intersection_with_anchors(bbox):
@@ -148,15 +148,16 @@ def tf_ssd_bboxes_encode_layer(labels,
     # Encode features.
     feat_cy = (feat_cy - yref) / href / prior_scaling[0]
     feat_cx = (feat_cx - xref) / wref / prior_scaling[1]
-    feat_h = tf.log(feat_h / href) / prior_scaling[2]
-    feat_w = tf.log(feat_w / wref) / prior_scaling[3]
+    feat_h = tf.math.log(feat_h / href) / prior_scaling[2]
+    feat_w = tf.math.log(feat_w / wref) / prior_scaling[3]
     # Use SSD ordering: x / y / w / h instead of ours.
     feat_localizations = tf.stack([feat_cx, feat_cy, feat_w, feat_h], axis=-1)
     # return feat_labels, feat_localizations, feat_scores
     return tf_utils.reshape_list([feat_labels, feat_localizations, feat_scores])
 
 
-def tf_ssd_bboxes_encode(labels,
+def tf_ssd_bboxes_encode(image,
+                         labels,
                          bboxes,
                          anchors,
                          num_classes,
@@ -191,7 +192,12 @@ def tf_ssd_bboxes_encode(labels,
                 target_labels.append(t_labels)
                 target_localizations.append(t_loc)
                 target_scores.append(t_scores)
-        return target_labels, target_localizations, target_scores
+        print('target_labels: ', target_labels)
+        print('target_localizations: ', target_localizations)
+        print('target_scores: ', target_scores)
+        r = tf_utils.reshape_list([image, target_labels, target_localizations, target_scores])
+        # return target_labels, target_localizations, target_scores
+        return r
 
 
 def tf_ssd_bboxes_decode_layer(feat_localizations,

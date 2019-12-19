@@ -105,24 +105,28 @@ def main():
         preprocessing_name = args.preprocessing_name or args.model_name
         image_preprocessing_fn = preprocessing_factory.get_preprocessing(
             preprocessing_name, is_training=True)
-        # image_preprocessing_fn = image_preprocessing_fn(out_shape=ssd_shape)
         # Select the dataset.
         # resize_image = resize_image_func(output_size=ssd_shape)
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
                                               args.dataset_dir)     # image, shape, label, bboxes
+        print('\n##$$ Initial dataset: ', dataset, '\n')
         dataset = dataset.map(lambda image, shape, label, bboxes:
                               image_preprocessing_fn(image, shape, label, bboxes,
                                                      out_shape=ssd_shape,
                                                      data_format=DATA_FORMAT))
-        # dataset = dataset.map(resize_image)
-
+        print('\n##$$ Dataset after preprocessing: ', dataset, '\n')
+        dataset = dataset.map(lambda image, labels, bboxes:
+                              ssd_net.bboxes_encode(image, labels, bboxes,
+                                                    anchors=ssd_anchors))
+        print('\n##$$ Dataset after bboxes_encode: ', dataset, '\n')
         # bboxes_encode = ssd_net.bboxes_encode(anchors=ssd_anchors, scope=None)
         # dataset = dataset.map(lambda image, shape, label, bboxes:
         #                       ssd_net.bboxes_encode(label, bboxes, ssd_anchors))
         # dataset = dataset.batch(2)
+        dataset = dataset.batch(2)
         print('################################################')
-        print('Info of dataset: ', dataset)
+        print('\n##$$ Dataset after batching: ', dataset, '\n')
         # print('\nBefore batching: ', dataset)
         # dataset = dataset.batch(2)
         # batched_dataset = dataset.batch(3, drop_remainder=True)
@@ -131,17 +135,24 @@ def main():
         print('\niterator: ', iterator)
 
         # image, shape, label, bboxes = iterator.get_next()
-        image, labels, bboxes = iterator.get_next()
-        print('\n## image: ', image)
+        # image, labels, bboxes = iterator.get_next()
+        r = iterator.get_next()
+        print('r after encode: ', r)
+        # print('\n## image: ', image)
         # print('## shape: ', shape)
-        print('## label: ', labels)
-        print('## bboxes: ', bboxes)
+        # print('## label: ', labels)
+        # print('## bboxes: ', bboxes)
+        batch_shape = [1] + [len(ssd_anchors)] * 3
+        b_image, b_gclasses, b_glocalisations, b_gscores = \
+            tf_utils.reshape_list(r, batch_shape)
         print()
 
-        image_with_box = draw_bounding_boxes(image, bboxes)
-        print('@@ image: ', image)
-        print('@@ bboxes: ', bboxes)
-        print('@@ image_with_box: ', image_with_box)
+        # image_with_box = draw_bounding_boxes(b_image, b_glocalisations)
+        print('@@ b_image: ', b_image)
+        print('@@ b_gclasses: ', b_gclasses)
+        print('@@ b_gclasses[0]: ', b_gclasses[0])
+        print('@@ b_glocalisations: ', b_glocalisations)
+        print('@@ b_gscores: ', b_gscores)
 
         # Encode groundtruth labels and bboxes.
         # gclasses, glocalisations, gscores = ssd_net.bboxes_encode(label, bboxes, ssd_anchors)
@@ -157,12 +168,22 @@ def main():
                     print('\n=================== In Session =============================\n')
                     # _image_with_box = sess.run(image_with_box)
                     # # print(_image_with_box[0])
-                    # print(_image_with_box.shape, _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
+                    # print(type(_image_with_box), _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
                     # tmp = (_image_with_box[0] * 255).round().astype(np.uint8)
-                    _image = sess.run(image)
-                    print(type(_image), _image.shape, _image.min(), _image.max())
-                    tmp = (_image * 255).astype(np.uint8)
-                    print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                    # _image = sess.run(image)
+                    # print(type(_image), _image.shape, _image.min(), _image.max())
+                    # tmp = (_image * 255).astype(np.uint8)
+                    # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                    # _image_with_box = sess.run(b_image[0])
+                    # # print(_image_with_box[0])
+                    # print(type(_image_with_box), _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
+                    # tmp = (_image_with_box * 255).round().astype(np.uint8)
+                    # img = Image.fromarray(tmp)
+                    # img.show()
+                    _image, _b_gclasses = sess.run([b_image, b_gclasses])
+                    print(_b_gclasses[4][0])
+                    print(type(_b_gclasses[4][0]), _b_gclasses[4][0].shape, _b_gclasses[4][0].min(), _b_gclasses[4][0].max())
+                    tmp = (_image[0] * 255).round().astype(np.uint8)
                     img = Image.fromarray(tmp)
                     img.show()
             except tf.errors.OutOfRangeError:

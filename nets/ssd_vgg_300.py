@@ -173,11 +173,13 @@ class SSDNet(object):
                                       self.params.anchor_offset,
                                       dtype)
 
-    def bboxes_encode(self, labels, bboxes,
-                      anchors, scope=None,):
-        """Encode labels and bounding boxes.
-        """
-        return ssd_common.tf_ssd_bboxes_encode(labels, bboxes, anchors,
+    # def bboxes_encode(self, labels, bboxes,
+    #                   anchors, scope=None,):
+    #     """Encode labels and bounding boxes.
+    #     """
+    def bboxes_encode(self, image, labels, bboxes,
+                      anchors, scope=None):
+        return ssd_common.tf_ssd_bboxes_encode(image, labels, bboxes, anchors,
                                                self.params.num_classes,
                                                self.params.no_annotation_label,
                                                ignore_threshold=0.5,

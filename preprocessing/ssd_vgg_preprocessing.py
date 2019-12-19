@@ -94,7 +94,7 @@ def tf_summary_image(image, bboxes, name='image', unwhitened=False):
     image = tf.expand_dims(image, axis=0)
     bboxes = tf.expand_dims(bboxes, axis=0)
     image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
-    tf.summary.image(name, image_with_box)
+    tf.compat.v1.summary.image(name, image_with_box)
 
 
 def apply_with_random_selector(x, func, num_cases):
@@ -107,7 +107,7 @@ def apply_with_random_selector(x, func, num_cases):
         The result of func(x, sel), where func receives the value of the
         selector as a python integer, but sel is sampled dynamically.
     """
-    sel = tf.random_uniform([], maxval=num_cases, dtype=tf.int32)
+    sel = tf.random.uniform([], maxval=num_cases, dtype=tf.int32)
     # Pass the real x only to one of the func calls.
     return control_flow_ops.merge([
             func(control_flow_ops.switch(x, tf.equal(sel, case))[1], case)
@@ -275,8 +275,8 @@ def preprocess_for_train(image, shape, labels, bboxes,
                 num_cases=4)
         tf_summary_image(dst_image, bboxes, 'image_color_distorted')
 
-        print('#### dst_image: ', dst_image)
-        print('#### image: ', image)
+        # print('#### dst_image: ', dst_image)
+        # print('#### image: ', image)
         # Rescale to VGG input scale.
         # image = dst_image * 255.
         image = dst_image
@@ -284,7 +284,7 @@ def preprocess_for_train(image, shape, labels, bboxes,
         # Image data format.
         # if data_format == 'NCHW':
         #     image = tf.transpose(image, perm=(2, 0, 1))
-        print('##$$ image: ', image)
+        # print('##$$ image: ', image)
         return image, labels, bboxes
 
 
