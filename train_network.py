@@ -98,6 +98,8 @@ def main():
         ssd_net = ssd_class(ssd_params)
         ssd_shape = ssd_net.params.img_shape
         ssd_anchors = ssd_net.anchors(ssd_shape)    # ssd_anchors is a list with len equals 6.
+        # print('ssd_anchors: ')
+        # print(ssd_anchors)
 
         # Select the preprocessing function.
         preprocessing_name = args.preprocessing_name or args.model_name
@@ -122,21 +124,28 @@ def main():
         batch_shape = [1] + [len(ssd_anchors)] * 3
         b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)
 
+        # image_with_box = draw_bounding_boxes(b_image, b_glocalisations)
+        print('@@ b_image: ', b_image)
+        print('@@ b_gclasses: ', b_gclasses)
+        print('@@ b_glocalisations: ', b_glocalisations)
+        print('@@ b_gscores: ', b_gscores)
+
         print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         print('====================================================')
         with tf.compat.v1.Session() as sess:
             try:
                 while True:
                     print('\n=================== In Session =============================\n')
-                    _b_image, _b_gclasses, _b_glocalisations, _b_gscores = sess.run([b_image, b_gclasses, b_glocalisations, b_gscores])
-                    # print('@@ _shape: ', _shape)
-                    # print('@@ _label: ', _label)
-                    # print('@@ _bboxes: ', _bboxes)
-                    print('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
-                    print('_b_image\n', _b_image)
-                    print('_b_glocalisations\n', _b_glocalisations)
-                    print('====================================================')
-                    tmp = (_b_image[0] * 255).round().astype(np.uint8)
+                    # _image_with_box = sess.run(b_image[0])
+                    # # print(_image_with_box[0])
+                    # print(type(_image_with_box), _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
+                    # tmp = (_image_with_box * 255).round().astype(np.uint8)
+                    # img = Image.fromarray(tmp)
+                    # img.show()
+                    _image, _b_gclasses = sess.run([b_image, b_gclasses])
+                    print(_b_gclasses[4][0])
+                    print(type(_b_gclasses[4][0]), _b_gclasses[4][0].shape, _b_gclasses[4][0].min(), _b_gclasses[4][0].max())
+                    tmp = (_image[0] * 255).round().astype(np.uint8)
                     img = Image.fromarray(tmp)
                     img.show()
                     # tmp = (_image_with_bboxes[0] * 255).round().astype(np.uint8)

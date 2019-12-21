@@ -53,10 +53,9 @@ def tf_ssd_bboxes_encode_layer(labels,
 
     # Initialize tensors...
     shape = (yref.shape[0], yref.shape[1], href.size)
-    feat_labels = tf.zeros(shape, dtype=tf.int64)
-    feat_scores = tf.zeros(shape, dtype=dtype)
-
-    feat_ymin = tf.zeros(shape, dtype=dtype)
+    feat_labels = tf.zeros(shape, dtype=tf.int64)  # labels for each anchor in each cell
+    feat_scores = tf.zeros(shape, dtype=dtype)  # scores for each anchor in each cell
+    feat_ymin = tf.zeros(shape, dtype=dtype)  # location for each anchor in each cell
     feat_xmin = tf.zeros(shape, dtype=dtype)
     feat_ymax = tf.ones(shape, dtype=dtype)
     feat_xmax = tf.ones(shape, dtype=dtype)
@@ -77,32 +76,19 @@ def tf_ssd_bboxes_encode_layer(labels,
         jaccard = tf.math.divide(inter_vol, union_vol)
         return jaccard
 
-    def intersection_with_anchors(bbox):
-        """Compute intersection between score a box and the anchors.
-        """
-        int_ymin = tf.maximum(ymin, bbox[0])
-        int_xmin = tf.maximum(xmin, bbox[1])
-        int_ymax = tf.minimum(ymax, bbox[2])
-        int_xmax = tf.minimum(xmax, bbox[3])
-        h = tf.maximum(int_ymax - int_ymin, 0.)
-        w = tf.maximum(int_xmax - int_xmin, 0.)
-        inter_vol = h * w
-        scores = tf.div(inter_vol, vol_anchors)
-        return scores
-
     def condition(i, feat_labels, feat_scores,
                   feat_ymin, feat_xmin, feat_ymax, feat_xmax):
         """Condition: check label index.
         """
-        r = tf.less(i, tf.shape(labels))
-        return r[0]
+        r = tf.less(i, tf.shape(labels))    # Tensor("Less:0", shape=(1,), dtype=bool)
+        return r[0]     # Tensor("strided_slice:0", shape=(), dtype=bool)
 
     def body(i, feat_labels, feat_scores,
              feat_ymin, feat_xmin, feat_ymax, feat_xmax):
         """Body: update feature labels, scores and bboxes.
         Follow the original SSD paper for that purpose:
-          - assign values when jaccard > 0.5;
-          - only update if beat the score of other bboxes.
+            - assign values when jaccard > 0.5;
+            - only update if beat the score of other bboxes.
         """
         # Jaccard score.
         label = labels[i]
@@ -113,10 +99,13 @@ def tf_ssd_bboxes_encode_layer(labels,
                               tf.greater(jaccard, feat_scores))
         # mask = tf.greater(jaccard, feat_scores)
         # mask = tf.logical_and(mask, tf.greater(jaccard, matching_threshold))
-        # mask = tf.logical_and(mask, feat_scores > -0.5)
-        # mask = tf.logical_and(mask, label < num_classes)
+        mask = tf.logical_and(mask, feat_scores > 0.5)
+        mask = tf.logical_and(mask, label < num_classes)
         imask = tf.cast(mask, tf.int64)
         fmask = tf.cast(mask, dtype)
+        print('mask: ', mask)
+        print('imask: ', imask)
+        print('fmask: ', fmask)
         # Update values using mask.
         feat_labels = imask * label + (1 - imask) * feat_labels
         # feat_scores = jaccard
@@ -128,42 +117,34 @@ def tf_ssd_bboxes_encode_layer(labels,
         feat_ymax = fmask * bbox[2] + (1 - fmask) * feat_ymax
         feat_xmax = fmask * bbox[3] + (1 - fmask) * feat_xmax
 
-        # Check no annotation label: ignore these anchors...
-        # interscts = intersection_with_anchors(bbox)
-        # mask = tf.logical_and(interscts > ignore_threshold,
-        #                       label == no_annotation_label)
-        # # Replace scores by -1.
-        # feat_scores = tf.where(mask, -tf.cast(mask, dtype), feat_scores)
-
         return [i+1, feat_labels, feat_scores,
                 feat_ymin, feat_xmin, feat_ymax, feat_xmax]
+
     # Main loop definition.
     i = 0
     [i, feat_labels, feat_scores,
      feat_ymin, feat_xmin,
      feat_ymax, feat_xmax] = tf.while_loop(condition, body,
                                            [i, feat_labels, feat_scores,
-                                            feat_ymin, feat_xmin,
-                                            feat_ymax, feat_xmax])
+                                            feat_ymin, feat_xmin, feat_ymax, feat_xmax])
     # Transform to center / size.
-    feat_cy = (feat_ymax + feat_ymin) / 2.
-    feat_cx = (feat_xmax + feat_xmin) / 2.
-    feat_h = feat_ymax - feat_ymin
-    feat_w = feat_xmax - feat_xmin
+    # feat_cy = (feat_ymax + feat_ymin) / 2.
+    # feat_cx = (feat_xmax + feat_xmin) / 2.
+    # feat_h = feat_ymax - feat_ymin
+    # feat_w = feat_xmax - feat_xmin
     # Encode features.
-    feat_cy = (feat_cy - yref) / href / prior_scaling[0]
-    feat_cx = (feat_cx - xref) / wref / prior_scaling[1]
-    feat_h = tf.math.log(feat_h / href) / prior_scaling[2]
-    feat_w = tf.math.log(feat_w / wref) / prior_scaling[3]
+    # feat_cy = (feat_cy - yref) / href / prior_scaling[0]
+    # feat_cx = (feat_cx - xref) / wref / prior_scaling[1]
+    # feat_h = tf.math.log(feat_h / href) / prior_scaling[2]
+    # feat_w = tf.math.log(feat_w / wref) / prior_scaling[3]
     # Use SSD ordering: x / y / w / h instead of ours.
-    feat_localizations = tf.stack([feat_cx, feat_cy, feat_w, feat_h], axis=-1)
+    feat_localizations = tf.stack([feat_ymin, feat_xmin, feat_ymax, feat_xmax])
+    # feat_localizations = tf.stack([feat_cx, feat_cy, feat_w, feat_h], axis=-1)
     # return feat_labels, feat_localizations, feat_scores
     return tf_utils.reshape_list([feat_labels, feat_localizations, feat_scores])
 
 
-def tf_ssd_bboxes_encode(image,
-                         labels,
-                         bboxes,
+def tf_ssd_bboxes_encode(image, labels, bboxes,
                          anchors,
                          num_classes,
                          no_annotation_label,
@@ -174,13 +155,14 @@ def tf_ssd_bboxes_encode(image,
     """Encode groundtruth labels and bounding boxes using SSD net anchors.
     Encoding boxes for all feature layers.
     Arguments:
-      labels: 1D Tensor(int64) containing groundtruth labels;
-      bboxes: Nx4 Tensor(float) with bboxes relative coordinates;
-      anchors: List of Numpy array with layer anchors;
-      matching_threshold: Threshold for positive match with groundtruth bboxes;
-      prior_scaling: Scaling of encoded coordinates.
+        image:
+        labels: 1D Tensor(int64) containing groundtruth labels;
+        bboxes: Nx4 Tensor(float) with bboxes relative coordinates;
+        anchors: List of Numpy array with layer anchors;
+        matching_threshold: Threshold for positive match with groundtruth bboxes;
+        prior_scaling: Scaling of encoded coordinates.
     Return:
-      (target_labels, target_localizations, target_scores):
+        (target_labels, target_localizations, target_scores):
         Each element is a list of target Tensors.
     """
     with tf.name_scope(scope):
