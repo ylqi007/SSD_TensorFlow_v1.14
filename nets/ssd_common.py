@@ -19,6 +19,7 @@ import tensorflow as tf
 # import tf_extended as tfe
 import tf_utils
 
+MATCHING_THRESHOLD = 0.5
 
 # =========================================================================== #
 # TensorFlow implementation of boxes SSD encoding / decoding.
@@ -34,13 +35,13 @@ def tf_ssd_bboxes_encode_layer(labels,
     """Encode groundtruth labels and bounding boxes using SSD anchors from
     one layer.
     Arguments:
-      labels: 1D Tensor(int64) containing groundtruth labels;
-      bboxes: Nx4 Tensor(float) with bboxes relative coordinates;
-      anchors_layer: Numpy array with layer anchors;
-      matching_threshold: Threshold for positive match with groundtruth bboxes;
-      prior_scaling: Scaling of encoded coordinates.
+        labels: 1D Tensor(int64) containing groundtruth labels;
+        bboxes: Nx4 Tensor(float) with bboxes relative coordinates;
+        anchors_layer: Numpy array with layer anchors;
+        matching_threshold: Threshold for positive match with groundtruth bboxes;
+        prior_scaling: Scaling of encoded coordinates.
     Return:
-      (target_labels, target_localizations, target_scores): Target Tensors.
+        (target_labels, target_localizations, target_scores): Target Tensors.
     """
     # Anchors coordinates and volume.
     yref, xref, href, wref = anchors_layer
@@ -108,15 +109,19 @@ def tf_ssd_bboxes_encode_layer(labels,
         bbox = bboxes[i]
         jaccard = jaccard_with_anchors(bbox)
         # Mask: check threshold + scores + no annotations + num_classes.
-        mask = tf.greater(jaccard, feat_scores)
+        mask = tf.logical_and(tf.greater(jaccard, MATCHING_THRESHOLD),
+                              tf.greater(jaccard, feat_scores))
+        # mask = tf.greater(jaccard, feat_scores)
         # mask = tf.logical_and(mask, tf.greater(jaccard, matching_threshold))
-        mask = tf.logical_and(mask, feat_scores > -0.5)
-        mask = tf.logical_and(mask, label < num_classes)
+        # mask = tf.logical_and(mask, feat_scores > -0.5)
+        # mask = tf.logical_and(mask, label < num_classes)
         imask = tf.cast(mask, tf.int64)
         fmask = tf.cast(mask, dtype)
         # Update values using mask.
         feat_labels = imask * label + (1 - imask) * feat_labels
+        # feat_scores = jaccard
         feat_scores = tf.where(mask, jaccard, feat_scores)
+        # feat_scores = fmask * jaccard + (1 - fmask) * feat_scores
 
         feat_ymin = fmask * bbox[0] + (1 - fmask) * feat_ymin
         feat_xmin = fmask * bbox[1] + (1 - fmask) * feat_xmin

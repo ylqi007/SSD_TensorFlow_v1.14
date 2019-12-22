@@ -12,12 +12,19 @@
     - [x] Permutation
     - [ ] Withen
 
+- [x] Anchors   <br/> 
+    It is a list with len equals 6, and each element is a tuple representing (y, x, h, w).
+
 - [x] Encode anchor boxes的处理步骤:
     - [x] image_preprocessing_fn ==> 处理单张image
     - [x] ssd_net.bboxes_encode()   ==> 也是处理单张image
     - [x] tf_utils.reshape_list ==> 将bboxes_encode之后的几个list进行reshape，
     使每个image处理后都有相同的size， 以便后续的batch。
     
+- [ ] Encode bboxes:
+    - [ ] glabels
+    - [ ] gscores
+    - [ ] glocalizations
 
 
 原代码数据处理的方式是：
