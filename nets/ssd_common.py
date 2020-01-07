@@ -103,9 +103,9 @@ def tf_ssd_bboxes_encode_layer(labels,
         mask = tf.logical_and(mask, label < num_classes)
         imask = tf.cast(mask, tf.int64)
         fmask = tf.cast(mask, dtype)
-        print('mask: ', mask)
-        print('imask: ', imask)
-        print('fmask: ', fmask)
+        # print('mask: ', mask)
+        # print('imask: ', imask)
+        # print('fmask: ', fmask)
         # Update values using mask.
         feat_labels = imask * label + (1 - imask) * feat_labels
         # feat_scores = jaccard
@@ -179,9 +179,9 @@ def tf_ssd_bboxes_encode(image, labels, bboxes,
                 target_labels.append(t_labels)
                 target_localizations.append(t_loc)
                 target_scores.append(t_scores)
-        print('target_labels: ', target_labels)
-        print('target_localizations: ', target_localizations)
-        print('target_scores: ', target_scores)
+        # print('target_labels: ', target_labels)
+        # print('target_localizations: ', target_localizations)
+        # print('target_scores: ', target_scores)
         r = tf_utils.reshape_list([image, target_labels, target_localizations, target_scores])
         # return target_labels, target_localizations, target_scores
         return r

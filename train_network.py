@@ -116,41 +116,29 @@ def main():
         dataset = dataset.map(lambda image, labels, bboxes:
                               ssd_net.bboxes_encode(image, labels, bboxes,
                                                     anchors=ssd_anchors))
-        print('\n##$$ Dataset after bboxes_encode: ', dataset, '\n')
+        # print('\n##$$ Dataset after bboxes_encode: ', dataset, '\n')
         dataset = dataset.batch(1)
-        print('\n##$$ Dataset after batching: ', dataset, '\n')
+        # print('\n##$$ Dataset after batching: ', dataset, '\n')
         iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
         r = iterator.get_next()
         batch_shape = [1] + [len(ssd_anchors)] * 3
         b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)
 
-        # image_with_box = draw_bounding_boxes(b_image, b_glocalisations)
-        print('@@ b_image: ', b_image)
-        print('@@ b_gclasses: ', b_gclasses)
-        print('@@ b_glocalisations: ', b_glocalisations)
-        print('@@ b_gscores: ', b_gscores)
-
+        # predictions, localisations, logits, end_points = ssd_net.net(b_image, is_training=True)
+        net = ssd_net.net(b_image, is_training=True)
         print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         print('====================================================')
         with tf.compat.v1.Session() as sess:
+            sess.run(tf.global_variables_initializer())
             try:
                 while True:
                     print('\n=================== In Session =============================\n')
-                    # _image_with_box = sess.run(b_image[0])
-                    # # print(_image_with_box[0])
-                    # print(type(_image_with_box), _image_with_box.shape, _image_with_box.min(), _image_with_box.max())
-                    # tmp = (_image_with_box * 255).round().astype(np.uint8)
-                    # img = Image.fromarray(tmp)
-                    # img.show()
-                    _image, _b_gclasses = sess.run([b_image, b_gclasses])
-                    print(_b_gclasses[4][0])
-                    print(type(_b_gclasses[4][0]), _b_gclasses[4][0].shape, _b_gclasses[4][0].min(), _b_gclasses[4][0].max())
-                    tmp = (_image[0] * 255).round().astype(np.uint8)
+                    _net = sess.run(net)
+                    tmp = (_net[0] * 255).round().astype(np.uint8)
+                    # print(_net)
+                    print(type(tmp), tmp.shape, tmp.min(), tmp.max())
                     img = Image.fromarray(tmp)
                     img.show()
-                    # tmp = (_image_with_bboxes[0] * 255).round().astype(np.uint8)
-                    # img = Image.fromarray(tmp)
-                    # img.show()
             except tf.errors.OutOfRangeError:
                 pass
 

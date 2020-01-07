@@ -278,8 +278,8 @@ def preprocess_for_train(image, shape, labels, bboxes,
         # print('#### dst_image: ', dst_image)
         # print('#### image: ', image)
         # Rescale to VGG input scale.
-        # image = dst_image * 255.
-        image = dst_image
+        image = dst_image * 255.
+        # image = dst_image
         # image = tf_image_whitened(image, [_R_MEAN, _G_MEAN, _B_MEAN])
         # Image data format.
         # if data_format == 'NCHW':
