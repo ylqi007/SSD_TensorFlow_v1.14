@@ -360,55 +360,52 @@ def ssd_anchors_all_layers(img_shape,
     return layers_anchors
 
 
-# # =========================================================================== #
-# # Functional definition of VGG-based SSD 300.
-# # =========================================================================== #
-# def tensor_shape(x, rank=3):
-#     """Returns the dimensions of a tensor.
-#     Args:
-#       image: A N-D Tensor of shape.
-#     Returns:
-#       A list of dimensions. Dimensions that are statically known are python
-#         integers,otherwise they are integer scalar tensors.
-#     """
-#     if x.get_shape().is_fully_defined():
-#         return x.get_shape().as_list()
-#     else:
-#         static_shape = x.get_shape().with_rank(rank).as_list()
-#         dynamic_shape = tf.unstack(tf.shape(x), rank)
-#         return [s if s is not None else d
-#                 for s, d in zip(static_shape, dynamic_shape)]
-#
+# =========================================================================== #
+# Functional definition of VGG-based SSD 300.
+# =========================================================================== #
+def tensor_shape(x, rank=3):
+    """Returns the dimensions of a tensor.
+    Args:
+      image: A N-D Tensor of shape.
+    Returns:
+      A list of dimensions. Dimensions that are statically known are python
+        integers,otherwise they are integer scalar tensors.
+    """
+    if x.get_shape().is_fully_defined():
+        return x.get_shape().as_list()
+    else:
+        static_shape = x.get_shape().with_rank(rank).as_list()
+        dynamic_shape = tf.unstack(tf.shape(x), rank)
+        return [s if s is not None else d
+                for s, d in zip(static_shape, dynamic_shape)]
 
-# def ssd_multibox_layer(inputs,
-#                        num_classes,
-#                        sizes,
-#                        ratios=[1],
-#                        normalization=-1,
-#                        bn_normalization=False):
-#     """Construct a multibox layer, return a class and localization predictions.
-#     """
-#     net = inputs
-#     if normalization > 0:
-#         net = custom_layers.l2_normalization(net, scaling=True)
-#     # Number of anchors.
-#     num_anchors = len(sizes) + len(ratios)
-#
-#     # Location.
-#     num_loc_pred = num_anchors * 4
-#     loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None,
-#                            scope='conv_loc')
-#     loc_pred = custom_layers.channel_to_last(loc_pred)
-#     loc_pred = tf.reshape(loc_pred,
-#                           tensor_shape(loc_pred, 4)[:-1]+[num_anchors, 4])
-#     # Class prediction.
-#     num_cls_pred = num_anchors * num_classes
-#     cls_pred = slim.conv2d(net, num_cls_pred, [3, 3], activation_fn=None,
-#                            scope='conv_cls')
-#     cls_pred = custom_layers.channel_to_last(cls_pred)
-#     cls_pred = tf.reshape(cls_pred,
-#                           tensor_shape(cls_pred, 4)[:-1]+[num_anchors, num_classes])
-#     return cls_pred, loc_pred
+
+def ssd_multibox_layer(inputs,
+                       num_classes,
+                       sizes,
+                       ratios=[1],
+                       normalization=-1,
+                       bn_normalization=False):
+    """Construct a multibox layer, return a class and localization predictions.
+    """
+    net = inputs
+    if normalization > 0:
+        net = custom_layers.l2_normalization(net, scaling=True)
+    # Number of anchors.
+    num_anchors = len(sizes) + len(ratios)
+
+    # Location.
+    num_loc_pred = num_anchors * 4
+    loc_pred = slim.conv2d(net, num_loc_pred, [3, 3], activation_fn=None,
+                           scope='conv_loc')
+    loc_pred = custom_layers.channel_to_last(loc_pred)
+    loc_pred = tf.reshape(loc_pred, tensor_shape(loc_pred, 4)[:-1]+[num_anchors, 4])
+    # Class prediction.
+    num_cls_pred = num_anchors * num_classes
+    cls_pred = custom_layers.conv2d(net, num_cls_pred, [3, 3])
+    cls_pred = custom_layers.channel_to_last(cls_pred)
+    cls_pred = tf.reshape(cls_pred, tensor_shape(cls_pred, 4)[:-1]+[num_anchors, num_classes])
+    return cls_pred, loc_pred
 
 
 def ssd_net(inputs,
@@ -422,59 +419,48 @@ def ssd_net(inputs,
             prediction_fn=slim.softmax,
             reuse=None,
             scope='ssd_300_vgg'):
-    """SSD net definition.
-    """
+    """SSD net definition."""
     # if data_format == 'NCHW':
     #     inputs = tf.transpose(inputs, perm=(0, 3, 1, 2))
-
     # End_points collect relevant activations for external use.
     end_points = {}
     with tf.variable_scope(scope, 'ssd_300_vgg', [inputs], reuse=reuse):
+        net = inputs
         # Original VGG-16 blocks -- the first thirteen basebone
         # Block 1
         with tf.variable_scope('conv1'):
-            net = custom_layers.conv2d(inputs, 64, [3, 3])
             net = custom_layers.conv2d(net, 64, [3, 3])
-            end_points['block1'] = net
-            print('net1: ', net)    # Tensor("ssd_300_vgg/conv1/conv2d_1/LeakyRelu:0", shape=(?, 300, 300, 64), dtype=float32)
-        net = custom_layers.max_pool2d(net, [2, 2], scope='pool1')
-        print('pool1: ', net)       # shape=(?, 150, 150, 64), dtype=float32
+            net = custom_layers.conv2d(net, 64, [3, 3])
+        end_points['block1'] = net  # Tensor("ssd_300_vgg/conv1/conv2d_1/LeakyRelu:0", shape=(?, 300, 300, 64), dtype=float32)
+        net = custom_layers.max_pool2d(net, [2, 2], scope='pool1')  # shape=(?, 150, 150, 64), dtype=float32
         # Block 2
         with tf.variable_scope('conv2'):
             net = custom_layers.conv2d(net, 128, [3, 3])
             net = custom_layers.conv2d(net, 128, [3, 3])
-            end_points['block2'] = net
-            print('net2: ', net)    # shape=(?, 150, 150, 128), dtype=float32
-        net = custom_layers.max_pool2d(net, [2, 2], scope='pool2')
-        print('pool2: ', net)       # shape=(?, 75, 75, 128), dtype=float32
+        end_points['block2'] = net  # shape=(?, 150, 150, 128), dtype=float32
+        net = custom_layers.max_pool2d(net, [2, 2], scope='pool2')  # shape=(?, 75, 75, 128), dtype=float32
         # Block 3
         with tf.variable_scope('conv3'):
             net = custom_layers.conv2d(net, 256, [3, 3])
             net = custom_layers.conv2d(net, 256, [3, 3])
             net = custom_layers.conv2d(net, 256, [3, 3])
-            end_points['block3'] = net
-            print('net3: ', net)    # shape=(?, 75, 75, 256), dtype=float32
+        end_points['block3'] = net
         net = custom_layers.max_pool2d(net, [2, 2], scope='pool3')
-        print('pool3: ', net)       # shape=(?, 38, 38, 256), dtype=float32
         # Block 4
         with tf.variable_scope('conv4'):
             net = custom_layers.conv2d(net, 512, [3, 3])
             net = custom_layers.conv2d(net, 512, [3, 3])
             net = custom_layers.conv2d(net, 512, [3, 3])
-            end_points['block4'] = net
-            print('net4: ', net)    # shape=(?, 38, 38, 512), dtype=float32
-        net = custom_layers.max_pool2d(net, [2, 2], scope='pool4')
-        print('pool4: ', net)       # shape=(?, 19, 19, 512), dtype=float32
+        end_points['block4'] = net
+        net = custom_layers.max_pool2d(net, [2, 2], scope='pool4')  # shape=(?, 19, 19, 512), dtype=float32
         # Block 5
         with tf.variable_scope('conv5'):
             net = custom_layers.conv2d(net, 512, [3, 3])
             net = custom_layers.conv2d(net, 512, [3, 3])
             net = custom_layers.conv2d(net, 512, [3, 3])
-            end_points['block5'] = net
-            print('net5: ', net)    # shape=(?, 19, 19, 512), dtype=float32
-        net = custom_layers.max_pool2d(net, [2, 2], strides=[1, 1], scope='pool4')
-        print('pool5: ', net)       # shape=(?, 19, 19, 512), dtype=float32
-        # net = custom_layers.conv2d(net, 3, [3, 3])
+        end_points['block5'] = net  # shape=(?, 19, 19, 512), dtype=float32
+        net = custom_layers.max_pool2d(net, [2, 2], strides=[1, 1], scope='pool4')  # shape=(?, 19, 19, 512), dtype=float32
+        net = custom_layers.conv2d(net, 3, [3, 3])
 
         # Additional SSD blocks.
         # Block 6
@@ -487,7 +473,6 @@ def ssd_net(inputs,
             net = custom_layers.conv2d(net, 1024, [1, 1])
         end_points['block7'] = net
         net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
-
         # Block 8/9/10/11: 1x1 and 3x3 convolutions with stride 2 (except lasts)
         end_point = 'block8'
         with tf.variable_scope(end_point):
@@ -536,111 +521,42 @@ def ssd_net(inputs,
         predictions = []
         logits = []
         localisations = []
-        # for i, layer in enumerate(feat_layers):
-        #     with tf.variable_scope(layer + '_box') as sc:
-        #         p, l = ssd_multibox_layer(end_points[layer],
-        #                                   num_classes,
-        #                                   anchor_sizes[i],
-        #                                   anchor_ratios[i],
-        #                                   normalizations[i])
-        #         predictions.append(prediction_fn(p))
-        #         logits.append(p)
-        #         localisations.append(l)
-
-        # net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
-        # end_points['block1'] = net
-        # net = slim.max_pool2d(net, [2, 2], scope='pool1')
-        # # Block 2.
-        # net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
-        # end_points['block2'] = net
-        # net = slim.max_pool2d(net, [2, 2], scope='pool2')
-        # # Block 3.
-        # net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], scope='conv3')
-        # end_points['block3'] = net
-        # net = slim.max_pool2d(net, [2, 2], scope='pool3')
-        # # Block 4.
-        # net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv4')
-        # end_points['block4'] = net
-        # net = slim.max_pool2d(net, [2, 2], scope='pool4')
-        # # Block 5.
-        # net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv5')
-        # end_points['block5'] = net
-        # net = slim.max_pool2d(net, [3, 3], stride=1, scope='pool5')
-        #
-        # # Additional SSD blocks.
-        # # Block 6: let's dilate the hell out of it!
-        # net = slim.conv2d(net, 1024, [3, 3], rate=6, scope='conv6')
-        # end_points['block6'] = net
-        # net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
-        # # Block 7: 1x1 conv. Because the fuck.
-        # net = slim.conv2d(net, 1024, [1, 1], scope='conv7')
-        # end_points['block7'] = net
-        # net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
-        #
-        # # Block 8/9/10/11: 1x1 and 3x3 convolutions stride 2 (except lasts).
-        # end_point = 'block8'
-        # with tf.variable_scope(end_point):
-        #     net = slim.conv2d(net, 256, [1, 1], scope='conv1x1')
-        #     net = custom_layers.pad2d(net, pad=(1, 1))
-        #     net = slim.conv2d(net, 512, [3, 3], stride=2, scope='conv3x3', padding='VALID')
-        # end_points[end_point] = net
-        # end_point = 'block9'
-        # with tf.variable_scope(end_point):
-        #     net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-        #     net = custom_layers.pad2d(net, pad=(1, 1))
-        #     net = slim.conv2d(net, 256, [3, 3], stride=2, scope='conv3x3', padding='VALID')
-        # end_points[end_point] = net
-        # end_point = 'block10'
-        # with tf.variable_scope(end_point):
-        #     net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-        #     net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
-        # end_points[end_point] = net
-        # end_point = 'block11'
-        # with tf.variable_scope(end_point):
-        #     net = slim.conv2d(net, 128, [1, 1], scope='conv1x1')
-        #     net = slim.conv2d(net, 256, [3, 3], scope='conv3x3', padding='VALID')
-        # end_points[end_point] = net
-
-        # Prediction and localisations layers.
-        predictions = []
-        logits = []
-        localisations = []
-        # for i, layer in enumerate(feat_layers):
-        #     with tf.variable_scope(layer + '_box'):
-        #         p, l = ssd_multibox_layer(end_points[layer],
-        #                                   num_classes,
-        #                                   anchor_sizes[i],
-        #                                   anchor_ratios[i],
-        #                                   normalizations[i])
-        #     predictions.append(prediction_fn(p))
-        #     logits.append(p)
-        #     localisations.append(l)
-
-        # return predictions, localisations, logits, end_points
+        for i, layer in enumerate(feat_layers):
+            with tf.variable_scope(layer + '_box') as sc:
+                p, l = ssd_multibox_layer(end_points[layer],
+                                          num_classes,
+                                          anchor_sizes[i],
+                                          anchor_ratios[i],
+                                          normalizations[i])
+                predictions.append(prediction_fn(p))
+                logits.append(p)
+                localisations.append(l)
         return net
+        # return predictions, localisations, logits, end_points
+
 # ssd_net.default_image_size = 300
 
 
-def ssd_arg_scope(weight_decay=0.0005, data_format='NHWC'):
-    """Defines the VGG arg scope.
-    Args:
-      weight_decay: The l2 regularization coefficient.
-    Returns:
-      An arg_scope.
-    """
-    with slim.arg_scope([slim.conv2d, slim.fully_connected],
-                        activation_fn=tf.nn.relu,
-                        weights_regularizer=slim.l2_regularizer(weight_decay),
-                        weights_initializer=tf.contrib.layers.xavier_initializer(),
-                        biases_initializer=tf.zeros_initializer()):
-        with slim.arg_scope([slim.conv2d, slim.max_pool2d],
-                            padding='SAME',
-                            data_format=data_format):
-            with slim.arg_scope([custom_layers.pad2d,
-                                 custom_layers.l2_normalization,
-                                 custom_layers.channel_to_last],
-                                data_format=data_format) as sc:
-                return sc
+# def ssd_arg_scope(weight_decay=0.0005, data_format='NHWC'):
+#     """Defines the VGG arg scope.
+#     Args:
+#         weight_decay: The l2 regularization coefficient.
+#     Returns:
+#         An arg_scope.
+#     """
+#     with slim.arg_scope([slim.conv2d, slim.fully_connected],
+#                         activation_fn=tf.nn.relu,
+#                         weights_regularizer=slim.l2_regularizer(weight_decay),
+#                         weights_initializer=tf.contrib.layers.xavier_initializer(),
+#                         biases_initializer=tf.zeros_initializer()):
+#         with slim.arg_scope([slim.conv2d, slim.max_pool2d],
+#                             padding='SAME',
+#                             data_format=data_format):
+#             with slim.arg_scope([custom_layers.pad2d,
+#                                  custom_layers.l2_normalization,
+#                                  custom_layers.channel_to_last],
+#                                 data_format=data_format) as sc:
+#                 return sc
 
 #
 #

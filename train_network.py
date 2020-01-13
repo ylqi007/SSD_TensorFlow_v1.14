@@ -90,7 +90,7 @@ def main():
     with tf.Graph().as_default():
         # Create global_step.
         with tf.device('/cpu:0'):   # <tf.Variable 'global_step:0' shape=() dtype=int64_ref>
-            global_step = tf.compat.v1.train.create_global_step()
+            global_step = tf.compat.v1.train.get_or_create_global_step()
 
         # Get the SSD network and its anchors.
         ssd_class = nets_factory.get_network(args.model_name)   # ssd_class:  <class 'nets.ssd_vgg_300.SSDNet'>
@@ -98,13 +98,10 @@ def main():
         ssd_net = ssd_class(ssd_params)
         ssd_shape = ssd_net.params.img_shape
         ssd_anchors = ssd_net.anchors(ssd_shape)    # ssd_anchors is a list with len equals 6.
-        # print('ssd_anchors: ')
-        # print(ssd_anchors)
 
         # Select the preprocessing function.
         preprocessing_name = args.preprocessing_name or args.model_name
-        image_preprocessing_fn = preprocessing_factory.get_preprocessing(preprocessing_name,
-                                                                         is_training=True)
+        image_preprocessing_fn = preprocessing_factory.get_preprocessing(preprocessing_name, is_training=True)
         # Select the dataset.
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
@@ -127,14 +124,13 @@ def main():
         # predictions, localisations, logits, end_points = ssd_net.net(b_image, is_training=True)
         net = ssd_net.net(b_image, is_training=True)
         print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-        print('====================================================')
         with tf.compat.v1.Session() as sess:
             sess.run(tf.global_variables_initializer())
             try:
                 while True:
                     print('\n=================== In Session =============================\n')
                     _net = sess.run(net)
-                    tmp = (_net[0] * 255).round().astype(np.uint8)
+                    tmp = (_net[0]).round().astype(np.uint8)
                     # print(_net)
                     print(type(tmp), tmp.shape, tmp.min(), tmp.max())
                     img = Image.fromarray(tmp)
