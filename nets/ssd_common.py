@@ -128,18 +128,18 @@ def tf_ssd_bboxes_encode_layer(labels,
                                            [i, feat_labels, feat_scores,
                                             feat_ymin, feat_xmin, feat_ymax, feat_xmax])
     # Transform to center / size.
-    # feat_cy = (feat_ymax + feat_ymin) / 2.
-    # feat_cx = (feat_xmax + feat_xmin) / 2.
-    # feat_h = feat_ymax - feat_ymin
-    # feat_w = feat_xmax - feat_xmin
+    feat_cy = (feat_ymax + feat_ymin) / 2.
+    feat_cx = (feat_xmax + feat_xmin) / 2.
+    feat_h = feat_ymax - feat_ymin
+    feat_w = feat_xmax - feat_xmin
     # Encode features.
-    # feat_cy = (feat_cy - yref) / href / prior_scaling[0]
-    # feat_cx = (feat_cx - xref) / wref / prior_scaling[1]
-    # feat_h = tf.math.log(feat_h / href) / prior_scaling[2]
-    # feat_w = tf.math.log(feat_w / wref) / prior_scaling[3]
+    feat_cy = (feat_cy - yref) / href / prior_scaling[0]
+    feat_cx = (feat_cx - xref) / wref / prior_scaling[1]
+    feat_h = tf.math.log(feat_h / href) / prior_scaling[2]
+    feat_w = tf.math.log(feat_w / wref) / prior_scaling[3]
     # Use SSD ordering: x / y / w / h instead of ours.
-    feat_localizations = tf.stack([feat_ymin, feat_xmin, feat_ymax, feat_xmax])
-    # feat_localizations = tf.stack([feat_cx, feat_cy, feat_w, feat_h], axis=-1)
+    # feat_localizations = tf.stack([feat_ymin, feat_xmin, feat_ymax, feat_xmax])
+    feat_localizations = tf.stack([feat_cx, feat_cy, feat_w, feat_h], axis=-1)
     # return feat_labels, feat_localizations, feat_scores
     return tf_utils.reshape_list([feat_labels, feat_localizations, feat_scores])
 
