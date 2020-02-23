@@ -32,7 +32,7 @@ slim = tf.contrib.slim
 
 networks_map = {'ssd_300_vgg': ssd_vgg_300.ssd_net, }
 
-arg_scopes_map = {'ssd_300_vgg': ssd_vgg_300.ssd_arg_scope, }
+# arg_scopes_map = {'ssd_300_vgg': ssd_vgg_300.ssd_arg_scope, }
 
 networks_obj = {'ssd_300_vgg': ssd_vgg_300.SSDNet, }
 

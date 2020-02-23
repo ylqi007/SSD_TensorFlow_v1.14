@@ -27,6 +27,20 @@ from tensorflow.python.ops import init_ops
 # from tensorflow.python.ops import variable_scope
 
 
+def abs_smooth(x):
+    """Smoothed absolute function. Useful to compute an L1 smooth error.
+    Define as:
+        x^2/2           if abs(x) < 1,
+        abs(x) - 0.5,   if abs(x) < 1
+    We use here a differentiable definition using min(x) and abs(x).
+    Clearly not optimal, but good enough for our purpose.
+    """
+    absx = tf.abs(x)
+    minx = tf.minimum(absx, 1)
+    r = 0.5 * ((absx - 1) * minx + absx)
+    return r
+
+
 def conv2d(inputs, filters, kernel_size, padding='SAME', trainable=True):
     net = tf.layers.conv2d(inputs=inputs,
                            filters=filters,
@@ -38,6 +52,7 @@ def conv2d(inputs, filters, kernel_size, padding='SAME', trainable=True):
                            activation=tf.nn.leaky_relu,
                            use_bias=True,
                            kernel_initializer=tf.glorot_uniform_initializer(),
+                           # kernel_initializer=tf.compat.v1.initializers.he_normal(),
                            bias_initializer=tf.zeros_initializer(),
                            kernel_regularizer=None,
                            bias_regularizer=None,
@@ -125,7 +140,7 @@ def pad2d(inputs,
 
 def l2_normalization(inputs,
                      scaling=False,
-                     scale_initializer=init_ops.ones_initializer(),
+                     scale_initializer=tf.initializers.ones(),
                      reuse=None,
                      variables_collections=None,
                      outputs_collections=None,
@@ -171,13 +186,13 @@ def l2_normalization(inputs,
         outputs = tf.math.l2_normalize(inputs, norm_dim, epsilon=1e-12)
         # Additional scaling.
         if scaling:
-            scale_collections = tf.get_collection(variables_collections, 'scale')
-            scale = tf.get_variable('gamma',
-                                    shape=params_shape,
-                                    dtype=dtype,
-                                    initializer=scale_initializer,
-                                    collections=scale_collections,
-                                    trainable=trainable)
+            scale_collections = tf.compat.v1.get_collection(variables_collections, 'scale')
+            scale = tf.compat.v1.get_variable('gamma',
+                                              shape=params_shape,
+                                              dtype=dtype,
+                                              initializer=scale_initializer,
+                                              collections=scale_collections,
+                                              trainable=trainable)
             if data_format == 'NHWC':
                 outputs = tf.multiply(outputs, scale)
             elif data_format == 'NCHW':

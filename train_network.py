@@ -26,6 +26,8 @@ from nets import nets_factory
 from datasets import dataset_factory
 from preprocessing import preprocessing_factory
 
+import tf_extended as tfe
+
 tf.config.optimizer.set_jit(True)
 
 # DATA_FORMAT = 'NHWC'    # 'NCHW'
@@ -37,6 +39,12 @@ parser = argparse.ArgumentParser()
 # =========================================================================== #
 # SSD Network flags.
 # =========================================================================== #
+parser.add_argument('--loss_alpha', default=1,
+                    help='Alpha parameter in the loss function.')
+parser.add_argument('--negative_ratio', default=3.,
+                    help='Negative ratio in the loss function.')
+parser.add_argument('--match_threshold', default=0.5,
+                    help='Matching threshold in the loss function.')
 
 
 # =========================================================================== #
@@ -47,12 +55,36 @@ parser = argparse.ArgumentParser()
 # =========================================================================== #
 # Optimization Flags.
 # =========================================================================== #
+parser.add_argument('--weight_decay', default=0.00004,
+                    help='The weight decay on the model weight.')
+parser.add_argument('--optimizer', default='rmsprop',
+                    help='The name of optimizer, one of "adadelta", "adagrad", "adam"'
+                         '"ftrl", "momentum", "sgd", or "rmsprop"')
+parser.add_argument('--opt_epsilon', default=1.0,
+                    help='Epsilon term fro the optimizer.')
+parser.add_argument('--rmsprop_decay', default=0.9,
+                    help='Decay term for RMSProp.')
+parser.add_argument('--rmsprop_momentum', default=0.9,
+                    help='Momentum.')
 
 
 # =========================================================================== #
 # Learning Rate Flags.
 # =========================================================================== #
-
+parser.add_argument('--learning_rate_decay_type', default='exponential',
+                    help='Specifics how the learning rate is decayed.'
+                         'One of "fixed", "exponential", or "polynomina".')
+parser.add_argument('--learning_rate', default=0.001,
+                    help='initial learning rate.')
+parser.add_argument('--learning_rate_decay_factor', default=0.94,
+                    help='Learning rate decay factor.')
+parser.add_argument('--moving_average_decay', default=None,
+                    help='The decay rate to use for the moving average.'
+                         'If left None, then moving averages are not used.')
+parser.add_argument('--label_smoothing', default=0.0,
+                    help='The amount of label smoothing.')
+parser.add_argument('--num_epochs_per_decay', default=2.0,
+                    help='Number of epochs after which ')
 
 # =========================================================================== #
 # Dataset Flags.
@@ -70,6 +102,8 @@ parser.add_argument('--model_name', default='ssd_300_vgg',
 parser.add_argument('--preprocessing_name', default=None,
                     help='The name of the preprocessing function to use.'
                          'If left as None, then the model_name is used.')
+parser.add_argument('--batch_size', default=None, type=int,
+                    help='The number of samples in each batch.')
 
 # =========================================================================== #
 # Fine-Tuning Flags.
@@ -86,11 +120,11 @@ def main():
     if not args.dataset_dir:
         raise ValueError('You must supply the dataset directory with --dataset_dir')
 
-    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
+    # tf.logging.set_verbosity(tf.logging.DEBUG)
     with tf.Graph().as_default():
         # Create global_step.
         with tf.device('/cpu:0'):   # <tf.Variable 'global_step:0' shape=() dtype=int64_ref>
-            global_step = tf.compat.v1.train.get_or_create_global_step()
+            global_step = tf.train.get_or_create_global_step()
 
         # Get the SSD network and its anchors.
         ssd_class = nets_factory.get_network(args.model_name)   # ssd_class:  <class 'nets.ssd_vgg_300.SSDNet'>
@@ -113,286 +147,83 @@ def main():
         dataset = dataset.map(lambda image, labels, bboxes:
                               ssd_net.bboxes_encode(image, labels, bboxes,
                                                     anchors=ssd_anchors))
-        # print('\n##$$ Dataset after bboxes_encode: ', dataset, '\n')
-        dataset = dataset.batch(1)
-        # print('\n##$$ Dataset after batching: ', dataset, '\n')
-        iterator = tf.compat.v1.data.make_one_shot_iterator(dataset)
+        dataset = dataset.repeat()
+        dataset = dataset.batch(4)
+        iterator = tf.data.make_one_shot_iterator(dataset)
         r = iterator.get_next()
         batch_shape = [1] + [len(ssd_anchors)] * 3
         b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)
+        predictions, localisations, logits, end_points = ssd_net.net(b_image, is_training=True)
+        n_positive = ssd_net.losses(logits, localisations,
+                                    b_gclasses, b_glocalisations, b_gscores,
+                                    match_threshold=args.match_threshold,
+                                    negative_ratio=args.negative_ratio,
+                                    alpha=args.loss_alpha,
+                                    label_smoothing=args.label_smoothing)
 
-        # predictions, localisations, logits, end_points = ssd_net.net(b_image, is_training=True)
-        net = ssd_net.net(b_image, is_training=True)
-        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
-        with tf.compat.v1.Session() as sess:
+        # =================================================================== #
+        # Configure the moving averages.
+        # =================================================================== #
+        if args.moving_average_decay:
+            # moving_average_variables = slim.get_model_variables()
+            # variable_averages = tf.train.ExponentialMovingAverage(args.moving_average_decay, global_step)
+            moving_average_variables, variable_averages = None, None
+        else:
+            moving_average_variables, variable_averages = None, None
+
+        # =================================================================== #
+        # Configure the optimization procedure.
+        # =================================================================== #
+        with tf.device('/cpu:0'):
+            learning_rate = tf_utils.configure_learning_rate(args,
+                                                             10,  # dataset.num_samples,
+                                                             global_step)
+            optimizer = tf_utils.configure_optimizer(args, learning_rate)
+            # summaries.add(tf.summary.scalar('learning_rate', learning_rate))
+
+        # Variables to train.
+        # variables_to_train = tf_utils.get_variables_to_train(args)
+        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+        losses = tf.get_collection(tf.GraphKeys.LOSSES)
+        print('===================================')
+        losses1 = tf.math.add_n(losses)
+        print(losses)
+        print(losses1)
+        # train_step = optimizer.minimize(losses1, global_step=global_step)
+        train_step = optimizer.minimize(losses1)
+        with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            try:
-                while True:
-                    print('\n=================== In Session =============================\n')
-                    _net = sess.run(net)
-                    tmp = (_net[0]).round().astype(np.uint8)
-                    # print(_net)
-                    print(type(tmp), tmp.shape, tmp.min(), tmp.max())
-                    img = Image.fromarray(tmp)
-                    img.show()
-            except tf.errors.OutOfRangeError:
-                pass
-
-            # while(True):
-            #     print('\n==================\n')
-            #     print('#### iterator: ', iterator)
-            #     print('#### sample: ', sample)
-            #     print('\n')
-            #     _features = [difficult, truncated, label,
-            #                  xmin, ymin, xmax, ymax,
-            #                  channels, _format, height, width, image, shape]
-            #     print('_features: ', _features)
-            #     features = sess.run(_features)
-            #     print('\nfeatures: ', features)
-            #     img = Image.fromarray(features[-2])
-            #     img.show()
-            #     print(image)
-
-            # print('\ndifficult, truncated, label: ')
-            # _difficult, _truncated, _label = sess.run([difficult, truncated, label])
-            # print(_difficult, _truncated, _label)
-
-            # print('new_info1: ', new_info1, sess.run(new_info1))
-            # print('new_info1: ', new_info1, sess.run(new_info1))
-            # print('new_info1: ', new_info1, sess.run(new_info1))
-
-        # for raw_record in dataset.take(3):
-        #     print(repr(raw_record))
-        # # Get the SSD network and its anchors.
-        # ssd_class = nets_factory.get_network(FLAGS.model_name)
-        # ssd_params = ssd_class.default_params._replace(num_classes=FLAGS.num_classes)
-        # ssd_net = ssd_class(ssd_params)
-        # ssd_shape = ssd_net.params.img_shape
-        # ssd_anchors = ssd_net.anchors(ssd_shape)
-        #
-        # # Select the preprocessing function.
-        # preprocessing_name = FLAGS.preprocessing_name or FLAGS.model_name
-        # image_preprocessing_fn = preprocessing_factory.get_preprocessing(
-        #     preprocessing_name, is_training=True)
-        #
-        # tf_utils.print_configuration(FLAGS.__flags, ssd_params,
-        #                              dataset.data_sources, FLAGS.train_dir)
-        # # =================================================================== #
-        # # Create a dataset provider and batches.
-        # # =================================================================== #
-        # with tf.device(deploy_config.inputs_device()):
-        #     with tf.name_scope(FLAGS.dataset_name + '_data_provider'):
-        #         provider = slim.dataset_data_provider.DatasetDataProvider(
-        #             dataset,
-        #             num_readers=FLAGS.num_readers,
-        #             common_queue_capacity=20 * FLAGS.batch_size,
-        #             common_queue_min=10 * FLAGS.batch_size,
-        #             shuffle=True)
-        #     # Get for SSD network: image, labels, bboxes.
-        #     [image, shape, glabels, gbboxes] = provider.get(['image', 'shape',
-        #                                                      'object/label',
-        #                                                      'object/bbox'])
-        #     # Pre-processing image, labels and bboxes.
-        #     image, glabels, gbboxes = \
-        #         image_preprocessing_fn(image, glabels, gbboxes,
-        #                                out_shape=ssd_shape,
-        #                                data_format=DATA_FORMAT)
-        #     # Encode groundtruth labels and bboxes.
-        #     gclasses, glocalisations, gscores = \
-        #         ssd_net.bboxes_encode(glabels, gbboxes, ssd_anchors)
-        #     batch_shape = [1] + [len(ssd_anchors)] * 3
-        #
-        #     # Training batches and queue.
-        #     r = tf.train.batch(
-        #         tf_utils.reshape_list([image, gclasses, glocalisations, gscores]),
-        #         batch_size=FLAGS.batch_size,
-        #         num_threads=FLAGS.num_preprocessing_threads,
-        #         capacity=5 * FLAGS.batch_size)
-        #     b_image, b_gclasses, b_glocalisations, b_gscores = \
-        #         tf_utils.reshape_list(r, batch_shape)
-        #
-        #     # Intermediate queueing: unique batch computation pipeline for all
-        #     # GPUs running the training.
-        #     batch_queue = slim.prefetch_queue.prefetch_queue(
-        #         tf_utils.reshape_list([b_image, b_gclasses, b_glocalisations, b_gscores]),
-        #         capacity=2 * deploy_config.num_clones)
-        #
-        # # =================================================================== #
-        # # Define the model running on every GPU.
-        # # =================================================================== #
-        # def clone_fn(batch_queue):
-        #     """Allows data parallelism by creating multiple
-        #     clones of network_fn."""
-        #     # Dequeue batch.
-        #     b_image, b_gclasses, b_glocalisations, b_gscores = \
-        #         tf_utils.reshape_list(batch_queue.dequeue(), batch_shape)
-        #
-        #     # Construct SSD network.
-        #     arg_scope = ssd_net.arg_scope(weight_decay=FLAGS.weight_decay,
-        #                                   data_format=DATA_FORMAT)
-        #     with slim.arg_scope(arg_scope):
-        #         predictions, localisations, logits, end_points = \
-        #             ssd_net.net(b_image, is_training=True)
-        #     # Add loss function.
-        #     ssd_net.losses(logits, localisations,
-        #                    b_gclasses, b_glocalisations, b_gscores,
-        #                    match_threshold=FLAGS.match_threshold,
-        #                    negative_ratio=FLAGS.negative_ratio,
-        #                    alpha=FLAGS.loss_alpha,
-        #                    label_smoothing=FLAGS.label_smoothing)
-        #     return end_points
-        #
-        # # Gather initial summaries.
-        # summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
-        #
-        # # =================================================================== #
-        # # Add summaries from first clone.
-        # # =================================================================== #
-        # clones = model_deploy.create_clones(deploy_config, clone_fn, [batch_queue])
-        # first_clone_scope = deploy_config.clone_scope(0)
-        # # Gather update_ops from the first clone. These contain, for example,
-        # # the updates for the batch_norm variables created by network_fn.
-        # update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS, first_clone_scope)
-        #
-        # # Add summaries for end_points.
-        # end_points = clones[0].outputs
-        # for end_point in end_points:
-        #     x = end_points[end_point]
-        #     summaries.add(tf.summary.histogram('activations/' + end_point, x))
-        #     summaries.add(tf.summary.scalar('sparsity/' + end_point,
-        #                                     tf.nn.zero_fraction(x)))
-        # # Add summaries for losses and extra losses.
-        # for loss in tf.get_collection(tf.GraphKeys.LOSSES, first_clone_scope):
-        #     summaries.add(tf.summary.scalar(loss.op.name, loss))
-        # for loss in tf.get_collection('EXTRA_LOSSES', first_clone_scope):
-        #     summaries.add(tf.summary.scalar(loss.op.name, loss))
-        #
-        # # Add summaries for variables.
-        # for variable in slim.get_model_variables():
-        #     summaries.add(tf.summary.histogram(variable.op.name, variable))
-        #
-        # # =================================================================== #
-        # # Configure the moving averages.
-        # # =================================================================== #
-        # if FLAGS.moving_average_decay:
-        #     moving_average_variables = slim.get_model_variables()
-        #     variable_averages = tf.train.ExponentialMovingAverage(
-        #         FLAGS.moving_average_decay, global_step)
-        # else:
-        #     moving_average_variables, variable_averages = None, None
-        #
-        # # =================================================================== #
-        # # Configure the optimization procedure.
-        # # =================================================================== #
-        # with tf.device(deploy_config.optimizer_device()):
-        #     learning_rate = tf_utils.configure_learning_rate(FLAGS,
-        #                                                      dataset.num_samples,
-        #                                                      global_step)
-        #     optimizer = tf_utils.configure_optimizer(FLAGS, learning_rate)
-        #     summaries.add(tf.summary.scalar('learning_rate', learning_rate))
-        #
-        # if FLAGS.moving_average_decay:
-        #     # Update ops executed locally by trainer.
-        #     update_ops.append(variable_averages.apply(moving_average_variables))
-        #
-        # # Variables to train.
-        # variables_to_train = tf_utils.get_variables_to_train(FLAGS)
-        #
-        # # and returns a train_tensor and summary_op
-        # total_loss, clones_gradients = model_deploy.optimize_clones(
-        #     clones,
-        #     optimizer,
-        #     var_list=variables_to_train)
-        # # Add total_loss to summary.
-        # summaries.add(tf.summary.scalar('total_loss', total_loss))
-        #
-        # # Create gradient updates.
-        # grad_updates = optimizer.apply_gradients(clones_gradients,
-        #                                          global_step=global_step)
-        # update_ops.append(grad_updates)
-        # update_op = tf.group(*update_ops)
-        # train_tensor = control_flow_ops.with_dependencies([update_op], total_loss,
-        #                                                   name='train_op')
-        #
-        # # Add the summaries from the first clone. These contain the summaries
-        # summaries |= set(tf.get_collection(tf.GraphKeys.SUMMARIES,
-        #                                    first_clone_scope))
-        # # Merge all summaries together.
-        # summary_op = tf.summary.merge(list(summaries), name='summary_op')
-        #
-        # # =================================================================== #
-        # # Kicks off the training.
-        # # =================================================================== #
-        # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_memory_fraction)
-        # config = tf.ConfigProto(log_device_placement=False,
-        #                         gpu_options=gpu_options)
-        # saver = tf.train.Saver(max_to_keep=5,
-        #                        keep_checkpoint_every_n_hours=1.0,
-        #                        write_version=2,
-        #                        pad_step_number=False)
-        # slim.learning.train(
-        #     train_tensor,
-        #     logdir=FLAGS.train_dir,
-        #     master='',
-        #     is_chief=True,
-        #     init_fn=tf_utils.get_init_fn(FLAGS),
-        #     summary_op=summary_op,
-        #     number_of_steps=FLAGS.max_number_of_steps,
-        #     log_every_n_steps=FLAGS.log_every_n_steps,
-        #     save_summaries_secs=FLAGS.save_summaries_secs,
-        #     saver=saver,
-        #     save_interval_secs=FLAGS.save_interval_secs,
-        #     session_config=config,
-        #     sync_optimizer=None)
-
-
-def draw_bounding_boxes(image, bboxes):
-    # Convert tf.uint8 to tf.float32.
-    if image.dtype != tf.float32:
-        image = tf.image.convert_image_dtype(image, dtype=tf.float32)
-    # print('#####################################')
-    # print('$$$$$ draw_bounding_boxes $$$$$')
-    # print('before expanding dims')
-    # print('#### image ', image.get_shape(), image.get_shape().ndims)
-    # print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
-    if image.get_shape().ndims == 3:
-        image = tf.expand_dims(image, axis=0)
-    if bboxes.get_shape().ndims == 2:
-        bboxes = tf.expand_dims(bboxes, axis=0)
-    # print('After expanding dims')
-    # print('#### image: ', image, image.get_shape(), image.get_shape().ndims)
-    # print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
-    print('#########################################################')
-    print('image: ', image)
-    print('bboxes: ', bboxes)
-    image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
-    return image_with_box
-
-
-# Resize without expanding dims
-def resize_image_func(output_size):
-    def _resize_image(image, shape, label, bboxes, size=output_size):
-        """
-        image: image can be a single image or a batch of images.
-        """
-        with tf.name_scope('resize_image'):
-            image = tf.image.resize(image, size=size,
-                                    method=tf.image.ResizeMethod.BILINEAR,
-                                    align_corners=False)
-            shape = tf.stack([size[0], size[1], 3])
-            # image = tf.reshape(image, tf.stack([size[0], size[1], 3]))
-            image = tf.reshape(image, shape)
-            return image, shape, label, bboxes
-    return _resize_image
-
-
-# Encode
-def _bboxes_encode(func=None, anchors=None, scope=None):
-    if func is None:
-        raise ValueError('You must provide ssd_encode_func')
-    if anchors is None:
-        raise ValueError('You must prove anchors.')
-    return func(anchors=anchors, scope=scope)
+            for i in range(10):
+                _losses1, _train_step, _global_step = sess.run([losses1, train_step, global_step])
+                # print('variables: ', sess.run(losses1))
+                # sess.run(train_step)
+                print('Iteration %3d Losses: %f\t%d' % (i, _losses1, _global_step))
+                print(_train_step)
+                # _n_positive = sess.run(n_positive)
+                # print('### _n_positive: ', _n_positive)
+        # with tf.Session() as sess:
+        #     sess.run(tf.global_variables_initializer())
+        #     try:
+        #         while True:
+        #             print('\n=================== In Session =============================\n')
+        #             # _net = sess.run(predictions)
+        #             # tmp = (_net[0]).round().astype(np.uint8)
+        #             # print(_net[-1][-1])
+        #             # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+        #             # img = Image.fromarray(tmp)
+        #             # img.show()
+        #             _logits = sess.run(fnmask)
+        #             count = sum(i==1. for i in _logits)
+        #             print('#$#$ count: ', count)
+        #             print(_logits.shape)
+        #             print('glocalisations: ', _logits)
+        #             print('min & max: ', np.min(_logits), np.max(_logits))
+        #             print('@@@@@@@@@@@@@@@@@@')
+        #             # for i in _logits:
+        #             #     if i > 0.25:
+        #             #         print('$$$ i: ', i)
+        #     except tf.errors.OutOfRangeError:
+        #         pass
 
 
 if __name__ == '__main__':

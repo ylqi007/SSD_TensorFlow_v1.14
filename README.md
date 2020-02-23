@@ -26,9 +26,13 @@
     - [ ] gscores
     - [ ] glocalizations
 
+- [ ] l2 normalization: undo right now
 
 原代码数据处理的方式是：
 1. Get element from tf.data.Dataset
 2. Image_preprocessing
 3. Encode with ssd_anchors
 4. Batch
+
+
+
