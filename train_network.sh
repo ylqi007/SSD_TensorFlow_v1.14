@@ -10,4 +10,3 @@ python train_network.py     \
     --dataset_dir=${DATASET_DIR}    \
     --dataset_split_name=train  \
     --batch_size=1
-

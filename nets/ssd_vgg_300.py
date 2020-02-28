@@ -417,7 +417,7 @@ def ssd_net(inputs,
             normalizations=SSDNet.default_params.normalizations,
             is_training=True,
             dropout_keep_prob=0.5,
-            prediction_fn=slim.softmax,
+            prediction_fn=tf.nn.softmax,
             reuse=None,
             scope='ssd_300_vgg'):
     """SSD net definition."""
@@ -459,7 +459,7 @@ def ssd_net(inputs,
             net = custom_layers.conv2d(net, 512, [3, 3])
             net = custom_layers.conv2d(net, 512, [3, 3])
             net = custom_layers.conv2d(net, 512, [3, 3])
-        end_points['block5'] = net  # shape=(?, 19, 19, 512), dtype=float32
+        end_points['block5'] = net                                  # shape=(?, 19, 19, 512), dtype=float32
         net = custom_layers.max_pool2d(net, [2, 2], strides=[1, 1], scope='pool4')  # shape=(?, 19, 19, 512), dtype=float32
         net = custom_layers.conv2d(net, 3, [3, 3])
 
@@ -474,61 +474,67 @@ def ssd_net(inputs,
             net = custom_layers.conv2d(net, 1024, [1, 1])
         end_points['block7'] = net
         net = tf.layers.dropout(net, rate=dropout_keep_prob, training=is_training)
+
         # Block 8/9/10/11: 1x1 and 3x3 convolutions with stride 2 (except lasts)
         end_point = 'block8'
         with tf.variable_scope(end_point):
             with tf.variable_scope('conv1x1'):
                 net = custom_layers.conv2d(net, 256, [1, 1])
-            print('\n##net in block8: ', net)
+            # print('\n##net in block8: ', net)
             net = custom_layers.pad2d(net, pad=(1, 1))
             with tf.variable_scope('conv3x3'):
                 net = tf.layers.conv2d(net, 512, [3, 3], strides=2, padding='VALID')
-            print('##net in block8: ', net)
+            # print('##net in block8: ', net)
         end_points[end_point] = net
         # Block 9
         end_point = 'block9'
         with tf.variable_scope(end_point):
             with tf.variable_scope('conv1x1'):
                 net = custom_layers.conv2d(net, 128, [1, 1])
-            print('\n##net in block9: ', net)
+            # print('\n##net in block9: ', net)
             net = custom_layers.pad2d(net, pad=(1, 1))
             with tf.variable_scope('conv3x3'):
                 net = tf.layers.conv2d(net, 256, [3, 3], strides=2, padding='VALID')
-            print('##net in block9: ', net)
+            # print('##net in block9: ', net)
         end_points[end_point] = net
         # Block 10
         end_point = 'block10'
         with tf.variable_scope(end_point):
             with tf.variable_scope('conv1x1'):
                 net = custom_layers.conv2d(net, 128, [1, 1])
-            print('\n##net in block10: ', net)
+            # print('\n##net in block10: ', net)
             # net = custom_layers.pad2d(net, pad=(1, 1))
             with tf.variable_scope('conv3x3'):
                 net = tf.layers.conv2d(net, 256, [3, 3], padding='VALID')
-            print('##net in block10: ', net)
+            # print('##net in block10: ', net)
         end_points[end_point] = net
         # Block 11
         end_point = 'block11'
         with tf.variable_scope(end_point):
             with tf.variable_scope('conv1x1'):
                 net = custom_layers.conv2d(net, 128, [1, 1])
-            print('\n##net in block11: ', net)
+            # print('\n##net in block11: ', net)
             with tf.variable_scope('conv3x3'):
                 net = tf.layers.conv2d(net, 256, [3, 3], padding='VALID')
-            print('##net in block11: ', net)
+            # print('##net in block11: ', net)
         end_points[end_point] = net
 
         # Prediction and localisations layers.
         predictions = []
         logits = []
         localisations = []
+        print('=================================')
+        print('feat layers: ', feat_layers)
         for i, layer in enumerate(feat_layers):
-            with tf.variable_scope(layer + '_box') as sc:
+            with tf.variable_scope(layer + '_box'):
                 p, l = ssd_multibox_layer(end_points[layer],
                                           num_classes,
                                           anchor_sizes[i],
                                           anchor_ratios[i],
                                           normalizations[i])
+                # print('================================= %d' % i)
+                # print('prediction: ', p)
+                # print('logits: ', l)
                 predictions.append(prediction_fn(p))
                 logits.append(p)
                 localisations.append(l)
@@ -601,7 +607,7 @@ def ssd_losses(logits, localisations,
         print('==================== Compute positive matching mask. =======================')
         pmask = gscores > match_threshold   # positive mask, matching_threshold=0.5, dtype=bool
         fpmask = tf.cast(pmask, dtype)      # dtype=float32
-        n_positives = tf.reduce_sum(fpmask)     # The number of positive samples, Tensor("ssd_losses/Sum:0", shape=(), dtype=float32)
+        n_positives = tf.reduce_sum(fpmask) # The number of positive samples, Tensor("ssd_losses/Sum:0", shape=(), dtype=float32)
 
         # Hard negative mining.
         print('==================== Hard negative mining. =======================')
@@ -611,12 +617,12 @@ def ssd_losses(logits, localisations,
         fnmask = tf.cast(nmask, dtype)
         nvalues = tf.where(nmask, predictions[:, 0], 1. - fnmask)   # why only predictions[:, 0], (8732, 21)
         nvalues_flat = tf.reshape(nvalues, [-1])
-        print('no_classes: ', no_classes)
-        print('logits: ', logits)
-        print('predictions: ', predictions)
-        print('nmask: ', nmask)
-        print('nvalues: ', nvalues)
-        print('nvalues_flat: ', nvalues_flat)
+        # print('no_classes: ', no_classes)
+        # print('logits: ', logits)
+        # print('predictions: ', predictions)
+        # print('nmask: ', nmask)
+        # print('nvalues: ', nvalues)
+        # print('nvalues_flat: ', nvalues_flat)
 
         # Number of negative entries to select.
         max_neg_entries = tf.cast(tf.reduce_sum(fnmask), tf.int32)
@@ -631,17 +637,17 @@ def ssd_losses(logits, localisations,
         fnmask = tf.cast(nmask, dtype)
         batch_size = tf.cast(batch_size, dtype)
         # Add cross-entropy loss.
-        with tf.name_scope('cross_entropy_pos'):
-            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-                                                                  labels=gclasses)
-            loss = tf.math.divide(tf.reduce_sum(loss*fpmask), batch_size, name='value')
-            tf.losses.add_loss(loss)
-
-        # with tf.name_scope('cross_entropy_neg'):
+        # with tf.name_scope('cross_entropy_pos'):
         #     loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-        #                                                           labels=no_classes)
-        #     loss = tf.math.divide(tf.reduce_sum(loss * fnmask), batch_size, name='value')
+        #                                                           labels=gclasses)
+        #     loss = tf.math.divide(tf.reduce_sum(loss*fpmask), batch_size, name='value')
         #     tf.losses.add_loss(loss)
+
+        with tf.name_scope('cross_entropy_neg'):
+            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
+                                                                  labels=no_classes)
+            loss = tf.math.divide(tf.reduce_sum(loss * fnmask), batch_size, name='value')
+            tf.losses.add_loss(loss)
 
         # Add localization loss: smooth L1, L2, ...
         # with tf.name_scope('localization'):

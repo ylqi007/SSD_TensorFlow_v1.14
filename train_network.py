@@ -30,11 +30,10 @@ import tf_extended as tfe
 
 tf.config.optimizer.set_jit(True)
 
-# DATA_FORMAT = 'NHWC'    # 'NCHW'
-DATA_FORMAT = 'NCHW'
+DATA_FORMAT = 'NHWC'
+# DATA_FORMAT = 'NCHW'
 
 parser = argparse.ArgumentParser()
-
 
 # =========================================================================== #
 # SSD Network flags.
@@ -152,7 +151,10 @@ def main():
         iterator = tf.data.make_one_shot_iterator(dataset)
         r = iterator.get_next()
         batch_shape = [1] + [len(ssd_anchors)] * 3
-        b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)
+        b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)    # line 251
+        # test_after_reshape_list(b_image, b_gclasses, b_glocalisations, b_gscores)
+
+        # Construct network and add losses.
         predictions, localisations, logits, end_points = ssd_net.net(b_image, is_training=True)
         n_positive = ssd_net.losses(logits, localisations,
                                     b_gclasses, b_glocalisations, b_gscores,
@@ -164,13 +166,13 @@ def main():
         # =================================================================== #
         # Configure the moving averages.
         # =================================================================== #
-        if args.moving_average_decay:
-            # moving_average_variables = slim.get_model_variables()
-            # variable_averages = tf.train.ExponentialMovingAverage(args.moving_average_decay, global_step)
-            moving_average_variables, variable_averages = None, None
-        else:
-            moving_average_variables, variable_averages = None, None
-
+        # if args.moving_average_decay:
+        #     # moving_average_variables = slim.get_model_variables()
+        #     # variable_averages = tf.train.ExponentialMovingAverage(args.moving_average_decay, global_step)
+        #     moving_average_variables, variable_averages = None, None
+        # else:
+        #     moving_average_variables, variable_averages = None, None
+        #
         # =================================================================== #
         # Configure the optimization procedure.
         # =================================================================== #
@@ -181,24 +183,41 @@ def main():
             optimizer = tf_utils.configure_optimizer(args, learning_rate)
             # summaries.add(tf.summary.scalar('learning_rate', learning_rate))
 
-        # Variables to train.
-        # variables_to_train = tf_utils.get_variables_to_train(args)
-        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+        # # Variables to train.
+        # # variables_to_train = tf_utils.get_variables_to_train(args)
+        # print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         losses = tf.get_collection(tf.GraphKeys.LOSSES)
+        print('losses: ', losses)
         print('===================================')
         losses1 = tf.math.add_n(losses)
         print(losses)
         print(losses1)
         # train_step = optimizer.minimize(losses1, global_step=global_step)
         train_step = optimizer.minimize(losses1)
+        # =================================================================== #
+        # Gather summaries.
+        # =================================================================== #
+        summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+        print('summaries: ', summaries, tf.GraphKeys.SUMMARIES, tf.get_collection(tf.GraphKeys.SUMMARIES))
+        print('losses: ', tf.GraphKeys.LOSSES, tf.get_collection(tf.GraphKeys.LOSSES))
+        # Add summaries for losses (and extra losses).
+        for loss in tf.get_collection(tf.GraphKeys.LOSSES):
+            summaries.add(tf.summary.scalar(loss.op.name, loss))
+        print('summaries: ', summaries, tf.GraphKeys.SUMMARIES, tf.get_collection(tf.GraphKeys.SUMMARIES))
+        # Merge all summaries together.
+        summary_op = tf.summary.merge(list(summaries), name='summary_op')
+        print(summary_op)
+        train_writer = tf.summary.FileWriter('./logs/train', tf.get_default_graph())
+        test_writer = tf.summary.FileWriter('./logs/test/')
         with tf.Session() as sess:
             sess.run(tf.global_variables_initializer())
-            for i in range(10):
-                _losses1, _train_step, _global_step = sess.run([losses1, train_step, global_step])
-                # print('variables: ', sess.run(losses1))
-                # sess.run(train_step)
-                print('Iteration %3d Losses: %f\t%d' % (i, _losses1, _global_step))
-                print(_train_step)
+            for i in range(100):
+                _losses1, _train_step, _global_step, _summary = sess.run([losses1, train_step, global_step, summary_op])
+                print('Iteration %3d Losses: %f' % (i, _losses1))
+                # print(_train_step)
+                if i % 10 == 9:
+                    train_writer.add_summary(_summary, i)
+        train_writer.close()
                 # _n_positive = sess.run(n_positive)
                 # print('### _n_positive: ', _n_positive)
         # with tf.Session() as sess:
@@ -206,24 +225,65 @@ def main():
         #     try:
         #         while True:
         #             print('\n=================== In Session =============================\n')
-        #             # _net = sess.run(predictions)
-        #             # tmp = (_net[0]).round().astype(np.uint8)
-        #             # print(_net[-1][-1])
-        #             # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
-        #             # img = Image.fromarray(tmp)
-        #             # img.show()
-        #             _logits = sess.run(fnmask)
-        #             count = sum(i==1. for i in _logits)
-        #             print('#$#$ count: ', count)
-        #             print(_logits.shape)
-        #             print('glocalisations: ', _logits)
-        #             print('min & max: ', np.min(_logits), np.max(_logits))
-        #             print('@@@@@@@@@@@@@@@@@@')
+        #             _net = sess.run(b_image)
+        #             tmp = (_net[0]).round().astype(np.uint8)
+        #             print(_net[-1][-1])
+        #             print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+        #             img = Image.fromarray(tmp)
+        #             img.show()
+        #             # _logits = sess.run(fnmask)
+        #             # count = sum(i==1. for i in _logits)
+        #             # print('#$#$ count: ', count)
+        #             # print(_logits.shape)
+        #             # print('glocalisations: ', _logits)
+        #             # print('min & max: ', np.min(_logits), np.max(_logits))
+        #             # print('@@@@@@@@@@@@@@@@@@')
         #             # for i in _logits:
         #             #     if i > 0.25:
         #             #         print('$$$ i: ', i)
         #     except tf.errors.OutOfRangeError:
         #         pass
+
+
+def test_after_reshape_list(b_image, b_gclasses, b_glocalisations, b_gscores):
+    print('===================================================')
+    print('===================== After reshaping ======================')
+    print('b_image:\n', b_image)
+    print('b_gclasses:\n', b_gclasses)
+    print('b_glocalisations:\n', b_glocalisations)
+    print('b_gscores:\n', b_gscores)
+    print('===================================================')
+    with tf.Session() as sess:
+        sess.run(tf.global_variables_initializer())
+        try:
+            while True:
+                print('\n=================== In Session =============================\n')
+                ### b_image information
+                # _b_image = sess.run(b_image)
+                # tmp = (_b_image[0]*255).round().astype(np.uint8)
+                # print(tmp[-1][-1])
+                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                # img = Image.fromarray(tmp)
+                # img.show()
+                ## b_gclasses information
+                # _b_gclasses = sess.run(b_gclasses)  # <class 'tuple'>
+                # tmp = _b_gclasses[4]
+                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                # for cls in np.nditer(tmp):
+                #     if cls != 0:
+                #         print(cls)
+                ## b_glocalisations
+                # _b_glocalisations = sess.run(b_glocalisations)
+                # tmp = _b_glocalisations[-1]
+                # print(tmp[-1])
+                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                ## b_gscores
+                # _b_gscores = sess.run(b_gscores)
+                # tmp = _b_gscores[-1]
+                # print(tmp[-1])
+                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+        except tf.errors.OutOfRangeError:
+            pass
 
 
 if __name__ == '__main__':
