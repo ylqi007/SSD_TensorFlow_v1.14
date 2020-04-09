@@ -162,7 +162,6 @@ def _convert_to_example(image_data, labels, labels_text, bboxes, shape,
             'image/object/bbox/truncated': int64_feature(truncated),
             'image/format': bytes_feature(image_format),
             'image/raw_data': bytes_feature(image_data)}))
-    print(image_data)
     return example
 
 

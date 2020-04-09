@@ -77,6 +77,8 @@ def get_dataset(split_name, dataset_dir, file_pattern):
     Raises:
         ValueError: if `split_name` is not a valid train/test split.
     """
+    if not tf.io.gfile.exists(dataset_dir):
+        raise ValueError("Data directory doesn't exist")
     file_pattern = os.path.join(dataset_dir, file_pattern % split_name)
     files = glob.glob(file_pattern)
     raw_image_dataset = tf.data.TFRecordDataset(files)  # <TFRecordDatasetV1 shapes: (), types: tf.string>

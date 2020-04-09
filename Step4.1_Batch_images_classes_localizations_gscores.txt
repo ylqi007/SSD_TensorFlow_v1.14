@@ -1,0 +1,36 @@
+==============================================================
+r:
+ (<tf.Tensor 'IteratorGetNext:0' shape=(?, 300, 300, 3) dtype=float32>,
+
+ <tf.Tensor 'IteratorGetNext:1' shape=(?, 38, 38, 4) dtype=int64>,
+ <tf.Tensor 'IteratorGetNext:2' shape=(?, 19, 19, 6) dtype=int64>,
+ <tf.Tensor 'IteratorGetNext:3' shape=(?, 10, 10, 6) dtype=int64>,
+ <tf.Tensor 'IteratorGetNext:4' shape=(?, 5, 5, 6) dtype=int64>,
+ <tf.Tensor 'IteratorGetNext:5' shape=(?, 3, 3, 4) dtype=int64>,
+ <tf.Tensor 'IteratorGetNext:6' shape=(?, 1, 1, 4) dtype=int64>,
+
+ <tf.Tensor 'IteratorGetNext:7' shape=(?, 38, 38, 4, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:8' shape=(?, 19, 19, 6, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:9' shape=(?, 10, 10, 6, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:10' shape=(?, 5, 5, 6, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:11' shape=(?, 3, 3, 4, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:12' shape=(?, 1, 1, 4, 4) dtype=float32>,
+
+ <tf.Tensor 'IteratorGetNext:13' shape=(?, 38, 38, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:14' shape=(?, 19, 19, 6) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:15' shape=(?, 10, 10, 6) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:16' shape=(?, 5, 5, 6) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:17' shape=(?, 3, 3, 4) dtype=float32>,
+ <tf.Tensor 'IteratorGetNext:18' shape=(?, 1, 1, 4) dtype=float32>)
+==============================================================
+b_image:
+ Tensor("IteratorGetNext:0", shape=(?, 300, 300, 3), dtype=float32)
+==============================================================
+b_gclasses:
+ (<tf.Tensor 'IteratorGetNext:7' shape=(?, 38, 38, 4, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:8' shape=(?, 19, 19, 6, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:9' shape=(?, 10, 10, 6, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:10' shape=(?, 5, 5, 6, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:11' shape=(?, 3, 3, 4, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:12' shape=(?, 1, 1, 4, 4) dtype=float32>)
+==============================================================
+b_glocalisations:
+ (<tf.Tensor 'IteratorGetNext:7' shape=(?, 38, 38, 4, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:8' shape=(?, 19, 19, 6, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:9' shape=(?, 10, 10, 6, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:10' shape=(?, 5, 5, 6, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:11' shape=(?, 3, 3, 4, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:12' shape=(?, 1, 1, 4, 4) dtype=float32>)
+==============================================================
+b_gscores:
+ (<tf.Tensor 'IteratorGetNext:13' shape=(?, 38, 38, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:14' shape=(?, 19, 19, 6) dtype=float32>, <tf.Tensor 'IteratorGetNext:15' shape=(?, 10, 10, 6) dtype=float32>, <tf.Tensor 'IteratorGetNext:16' shape=(?, 5, 5, 6) dtype=float32>, <tf.Tensor 'IteratorGetNext:17' shape=(?, 3, 3, 4) dtype=float32>, <tf.Tensor 'IteratorGetNext:18' shape=(?, 1, 1, 4) dtype=float32>)

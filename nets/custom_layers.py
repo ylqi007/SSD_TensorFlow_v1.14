@@ -21,7 +21,7 @@ import tensorflow as tf
 # from tensorflow.contrib.framework.python.ops import add_arg_scope
 # from tensorflow.contrib.layers.python.layers import initializers
 # from tensorflow.contrib.framework.python.ops import variables
-# from tensorflow.contrib.layers.python.layers import utils
+from tensorflow.contrib.layers.python.layers import utils
 # from tensorflow.python.ops import nn
 from tensorflow.python.ops import init_ops
 # from tensorflow.python.ops import variable_scope
@@ -41,7 +41,7 @@ def abs_smooth(x):
     return r
 
 
-def conv2d(inputs, filters, kernel_size, padding='SAME', trainable=True):
+def conv2d(inputs, filters, kernel_size, activation_fn=tf.nn.relu, padding='SAME', trainable=True):
     net = tf.layers.conv2d(inputs=inputs,
                            filters=filters,
                            kernel_size=kernel_size,
@@ -49,7 +49,8 @@ def conv2d(inputs, filters, kernel_size, padding='SAME', trainable=True):
                            padding='SAME',
                            data_format='channels_last',
                            dilation_rate=(1, 1),
-                           activation=tf.nn.leaky_relu,
+                           # activation=tf.nn.leaky_relu,
+                           activation=activation_fn,
                            use_bias=True,
                            kernel_initializer=tf.glorot_uniform_initializer(),
                            # kernel_initializer=tf.compat.v1.initializers.he_normal(),
@@ -168,11 +169,16 @@ def l2_normalization(inputs,
     Returns:
         A `Tensor` representing the output of the operation.
     """
-
+    print('==================================================================')
+    print('=========== In custom_layers.l2_normalization ==========')
     with tf.variable_scope(scope, 'L2Normalization', [inputs], reuse=reuse) as sc:
         inputs_shape = inputs.get_shape()
         inputs_rank = inputs_shape.ndims
         dtype = inputs.dtype.base_dtype
+        print('### inputs: ', inputs)
+        print('### inputs_shape: ', inputs_shape)
+        print('### inputs_rank: ', inputs_rank)
+        print('### dtype: ', dtype)
         if data_format == 'NHWC':
             # norm_dim = tf.range(1, inputs_rank-1)
             norm_dim = tf.range(inputs_rank-1, inputs_rank)     # channel
@@ -186,8 +192,9 @@ def l2_normalization(inputs,
         outputs = tf.math.l2_normalize(inputs, norm_dim, epsilon=1e-12)
         # Additional scaling.
         if scaling:
-            scale_collections = tf.compat.v1.get_collection(variables_collections, 'scale')
-            scale = tf.compat.v1.get_variable('gamma',
+            scale_collections = utils.get_variable_collections(
+                variables_collections, 'scale')
+            scale = tf.compat.v1.get_variable(name='gamma',
                                               shape=params_shape,
                                               dtype=dtype,
                                               initializer=scale_initializer,
@@ -200,7 +207,10 @@ def l2_normalization(inputs,
                 scale = tf.expand_dims(scale, axis=-1)
                 outputs = tf.multiply(outputs, scale)
                 # outputs = tf.transpose(outputs, perm=(0, 2, 3, 1))
-        return outputs
+        # return outputs
+        with tf.variable_scope(sc.original_name_scope):
+            res = outputs
+        return res
         # return utils.collect_named_outputs(outputs_collections,
         #                                    sc.original_name_scope, outputs)
 

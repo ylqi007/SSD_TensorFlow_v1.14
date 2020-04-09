@@ -96,15 +96,20 @@ def configure_learning_rate(args, num_samples_per_epoch, global_step):
     Returns:
       A `Tensor` representing the learning rate.
     """
-    print('*********************************************************************')
-    print('num_samples_per_epoch: ', num_samples_per_epoch)
-    print('global_step: ', global_step)
-    print('args.batch_size: ', args.batch_size, type(args.batch_size))
-    print('args.num_epochs_per_decay: ', args.num_epochs_per_decay)
+    # print('*********************************************************************')
+    # print('num_samples_per_epoch: ', num_samples_per_epoch)
+    # print('global_step: ', global_step)
+    # print('args.batch_size: ', args.batch_size, type(args.batch_size))
+    # print('args.num_epochs_per_decay: ', args.num_epochs_per_decay)
     decay_steps = int(num_samples_per_epoch / args.batch_size *
                       args.num_epochs_per_decay)
 
     if args.learning_rate_decay_type == 'exponential':
+        print('===== config learning rate =====')
+        print('args.learning_rate: ', args.learning_rate)
+        print('global_step: ', global_step)
+        print('decay steps: ', decay_steps)
+        print('learning_rate_decay_factor: ', args.learning_rate_decay_type)
         return tf.train.exponential_decay(args.learning_rate,
                                           global_step,
                                           decay_steps,
@@ -253,8 +258,6 @@ def configure_optimizer(args, learning_rate):
 #     return variables_to_train
 
 
-
-
 def draw_bounding_boxes(image, bboxes):
     # Convert tf.uint8 to tf.float32.
     if image.dtype != tf.float32:
@@ -266,9 +269,9 @@ def draw_bounding_boxes(image, bboxes):
     # print('After expanding dims')
     # print('#### image: ', image, image.get_shape(), image.get_shape().ndims)
     # print('#### bboxes: ', bboxes, bboxes.get_shape(), bboxes.get_shape().ndims)
-    print('#########################################################')
-    print('image: ', image)
-    print('bboxes: ', bboxes)
+    # print('#########################################################')
+    # print('image: ', image)
+    # print('bboxes: ', bboxes)
     image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
     return image_with_box
 

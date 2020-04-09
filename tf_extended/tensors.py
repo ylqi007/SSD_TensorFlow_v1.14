@@ -41,18 +41,18 @@ def get_shape(x, rank=None):
         input tensor.  Dimensions that are statically known are python integers,
         otherwise they are integer scalar tensors.
     """
-    print('===================')
-    print('Is x fully connected: ', x.get_shape().is_fully_defined())
-    print(x.get_shape())
-    print(x.get_shape().as_list())
-    print('rank: ', len(x.get_shape().as_list()))
+    # print('===================')
+    # print('Is x fully connected: ', x.get_shape().is_fully_defined())
+    # print(x.get_shape())
+    # print(x.get_shape().as_list())
+    # print('rank: ', len(x.get_shape().as_list()))
     static_shape = x.get_shape().with_rank(rank).as_list()
-    print('static_shape: ', static_shape)
+    # print('static_shape: ', static_shape)
     dynamic_shape = tf.unstack(tf.shape(x), rank)
-    print('dynamic_shape: ', dynamic_shape)
+    # print('dynamic_shape: ', dynamic_shape)
     shapes = [s if s is not None else d
               for s, d in zip(static_shape, dynamic_shape)]
-    print('###shape: ', shapes)
+    # print('###shape: ', shapes)
     if x.get_shape().is_fully_defined():
         return x.get_shape().as_list()
     else:

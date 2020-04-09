@@ -95,6 +95,7 @@ def tf_summary_image(image, bboxes, name='image', unwhitened=False):
     bboxes = tf.expand_dims(bboxes, axis=0)
     image_with_box = tf.image.draw_bounding_boxes(image, bboxes)
     tf.compat.v1.summary.image(name, image_with_box)
+    # tf.summary.image(name, image_with_box)
 
 
 def apply_with_random_selector(x, func, num_cases):
@@ -239,11 +240,12 @@ def preprocess_for_train(image, shape, labels, bboxes,
     """
     fast_mode = False
     with tf.name_scope(scope, 'ssd_preprocessing_train', [image, labels, bboxes]):
-        if image.get_shape().ndims != 3:
+        if image.get_shape().ndims != 3:    # Just preprocess an image each time.
             raise ValueError('Input must be of size [height, width, C>0]')
         # Convert to float scaled [0, 1].
         if image.dtype != tf.float32:
             image = tf.image.convert_image_dtype(image, dtype=tf.float32)
+
         tf_summary_image(image, bboxes, 'image_with_bboxes')
 
         # # Remove DontCare labels.
@@ -253,10 +255,10 @@ def preprocess_for_train(image, shape, labels, bboxes,
 
         # Distort image and bounding boxes.
         dst_image = image
-        # dst_image, labels, bboxes, distort_bbox = \
-        #     distorted_bounding_box_crop(image, labels, bboxes,
-        #                                 min_object_covered=MIN_OBJECT_COVERED,
-        #                                 aspect_ratio_range=CROP_RATIO_RANGE)
+        dst_image, labels, bboxes, distort_bbox = \
+            distorted_bounding_box_crop(image, labels, bboxes,
+                                        min_object_covered=MIN_OBJECT_COVERED,
+                                        aspect_ratio_range=CROP_RATIO_RANGE)
 
         # Resize image to output size.
         with tf.name_scope('resize_image'):

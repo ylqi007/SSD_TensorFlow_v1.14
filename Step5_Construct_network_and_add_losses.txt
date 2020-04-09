@@ -1,0 +1,12 @@
+=============== ssd_multibox_layer ===============
+==================================================================
+=========== In custom_layers.l2_normalization ==========
+### inputs:  Tensor("ssd_300_vgg/conv4/conv2d_2/Relu:0", shape=(?, 38, 38, 512), dtype=float32)
+### inputs_shape:  (?, 38, 38, 512)
+### inputs_rank:  4
+### dtype:  <dtype: 'float32'>
+=============== ssd_multibox_layer ===============
+=============== ssd_multibox_layer ===============
+=============== ssd_multibox_layer ===============
+=============== ssd_multibox_layer ===============
+=============== ssd_multibox_layer ===============

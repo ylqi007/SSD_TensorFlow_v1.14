@@ -28,10 +28,10 @@ from preprocessing import preprocessing_factory
 
 import tf_extended as tfe
 
-tf.config.optimizer.set_jit(True)
+# tf.config.optimizer.set_jit(True)
 
-DATA_FORMAT = 'NHWC'
-# DATA_FORMAT = 'NCHW'
+DATA_FORMAT = 'NHWC'    # CPU
+# DATA_FORMAT = 'NCHW'    # GPU
 
 parser = argparse.ArgumentParser()
 
@@ -119,49 +119,59 @@ def main():
     if not args.dataset_dir:
         raise ValueError('You must supply the dataset directory with --dataset_dir')
 
-    # tf.logging.set_verbosity(tf.logging.DEBUG)
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.DEBUG)
     with tf.Graph().as_default():
-        # Create global_step.
-        with tf.device('/cpu:0'):   # <tf.Variable 'global_step:0' shape=() dtype=int64_ref>
-            global_step = tf.train.get_or_create_global_step()
+        # 1. Create global_step.
+        with tf.device('/cpu:0'):       # global_step: <tf.Variable 'global_step:0' shape=() dtype=int64_ref>
+            global_step = tf.compat.v1.train.get_or_create_global_step()
 
-        # Get the SSD network and its anchors.
+        # 2. Get the SSD network and its anchors.
         ssd_class = nets_factory.get_network(args.model_name)   # ssd_class:  <class 'nets.ssd_vgg_300.SSDNet'>
         ssd_params = ssd_class.default_params._replace(num_classes=args.num_classes)
         ssd_net = ssd_class(ssd_params)
         ssd_shape = ssd_net.params.img_shape
-        ssd_anchors = ssd_net.anchors(ssd_shape)    # ssd_anchors is a list with len equals 6.
+        ssd_anchors = ssd_net.anchors(ssd_shape)        # ssd_anchors is a list with len equals 6.
 
-        # Select the preprocessing function.
+        # 3. Select the preprocessing function.
         preprocessing_name = args.preprocessing_name or args.model_name
         image_preprocessing_fn = preprocessing_factory.get_preprocessing(preprocessing_name, is_training=True)
-        # Select the dataset.
+
+        # 4. Select the dataset.
         dataset = dataset_factory.get_dataset(args.dataset_name,
                                               args.dataset_split_name,
                                               args.dataset_dir)     # image, shape, label, bboxes
+
         dataset = dataset.map(lambda image, shape, label, bboxes:
                               image_preprocessing_fn(image, shape, label, bboxes,
                                                      out_shape=ssd_shape,
                                                      data_format=DATA_FORMAT))  # image, labels, bboxes
+
         dataset = dataset.map(lambda image, labels, bboxes:
                               ssd_net.bboxes_encode(image, labels, bboxes,
                                                     anchors=ssd_anchors))
-        dataset = dataset.repeat()
+
+        dataset = dataset.repeat().shuffle(4)
         dataset = dataset.batch(4)
         iterator = tf.data.make_one_shot_iterator(dataset)
         r = iterator.get_next()
         batch_shape = [1] + [len(ssd_anchors)] * 3
-        b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)    # line 251
+        b_image, b_gclasses, b_glocalisations, b_gscores = tf_utils.reshape_list(r, batch_shape)   # line 251, [1,6,6,6]
         # test_after_reshape_list(b_image, b_gclasses, b_glocalisations, b_gscores)
 
-        # Construct network and add losses.
+        # 5. Construct network and add losses.
         predictions, localisations, logits, end_points = ssd_net.net(b_image, is_training=True)
-        n_positive = ssd_net.losses(logits, localisations,
-                                    b_gclasses, b_glocalisations, b_gscores,
-                                    match_threshold=args.match_threshold,
-                                    negative_ratio=args.negative_ratio,
-                                    alpha=args.loss_alpha,
-                                    label_smoothing=args.label_smoothing)
+        # print('=====================================================================')
+        # print('logits: ', logits)
+        # print('\nlocalisations: ', localisations)
+        # print('\nb_gclasses: ', b_gclasses)
+        # print('\nb_glocalisations: ', b_glocalisations)
+        # print('\nb_gscores: ', b_gscores)
+        n_positives, logits, localisations, gclasses, gscores, glocalisations, predictions, no_classes = ssd_net.losses(logits, localisations,
+                                                        b_gclasses, b_glocalisations, b_gscores,
+                                                        match_threshold=args.match_threshold,
+                                                        negative_ratio=args.negative_ratio,
+                                                        alpha=args.loss_alpha,
+                                                        label_smoothing=args.label_smoothing)
 
         # =================================================================== #
         # Configure the moving averages.
@@ -178,14 +188,15 @@ def main():
         # =================================================================== #
         with tf.device('/cpu:0'):
             learning_rate = tf_utils.configure_learning_rate(args,
-                                                             10,  # dataset.num_samples,
+                                                             5011,  # dataset.num_samples,
                                                              global_step)
             optimizer = tf_utils.configure_optimizer(args, learning_rate)
             # summaries.add(tf.summary.scalar('learning_rate', learning_rate))
-
-        # # Variables to train.
-        # # variables_to_train = tf_utils.get_variables_to_train(args)
-        # print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
+            print('================= config learning rate ==================')
+            print('config learning rate: ', learning_rate)
+        # Variables to train.
+        # variables_to_train = tf_utils.get_variables_to_train(args)
+        print('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%')
         losses = tf.get_collection(tf.GraphKeys.LOSSES)
         print('losses: ', losses)
         print('===================================')
@@ -193,12 +204,15 @@ def main():
         print(losses)
         print(losses1)
         # train_step = optimizer.minimize(losses1, global_step=global_step)
-        train_step = optimizer.minimize(losses1)
+        train_step = optimizer.minimize(losses1, global_step=global_step)
+        saver = tf.train.Saver()
         # =================================================================== #
         # Gather summaries.
         # =================================================================== #
         summaries = set(tf.get_collection(tf.GraphKeys.SUMMARIES))
+        summaries.add(tf.summary.scalar('learning_rate', learning_rate))
         print('summaries: ', summaries, tf.GraphKeys.SUMMARIES, tf.get_collection(tf.GraphKeys.SUMMARIES))
+        print('####$$$$: ', tf.GraphKeys, tf.GraphKeys.SUMMARIES)
         print('losses: ', tf.GraphKeys.LOSSES, tf.get_collection(tf.GraphKeys.LOSSES))
         # Add summaries for losses (and extra losses).
         for loss in tf.get_collection(tf.GraphKeys.LOSSES):
@@ -206,82 +220,97 @@ def main():
         print('summaries: ', summaries, tf.GraphKeys.SUMMARIES, tf.get_collection(tf.GraphKeys.SUMMARIES))
         # Merge all summaries together.
         summary_op = tf.summary.merge(list(summaries), name='summary_op')
+        summary_op = tf.summary.merge_all(name='summary_op')
         print(summary_op)
-        train_writer = tf.summary.FileWriter('./logs/train', tf.get_default_graph())
-        test_writer = tf.summary.FileWriter('./logs/test/')
+        # train_writer = tf.summary.FileWriter('./logs/train', tf.get_default_graph())
+        test_writer = tf.summary.FileWriter('./logs1/test/')
         with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            for i in range(100):
-                _losses1, _train_step, _global_step, _summary = sess.run([losses1, train_step, global_step, summary_op])
-                print('Iteration %3d Losses: %f' % (i, _losses1))
-                # print(_train_step)
+            sess.run([tf.global_variables_initializer()])
+            train_writer = tf.summary.FileWriter('./logs1/train5', sess.graph)
+            for i in range(10000):
+                _losses1, _train_step, _global_step, _summary, _n_positives, _logits, _localisations, _gclasses, _gscores, _glocalisations, _predictions, _no_classes, rate \
+                    = sess.run([losses1, train_step, global_step, summary_op, n_positives, logits, localisations, gclasses, gscores, glocalisations, predictions, no_classes, learning_rate])
+                print('*************************************************')
+                print('Iteration %3d Losses: %f\t, no_positive: %4d' % (i, _losses1, _n_positives))
+                # print('#### logits: ', _logits[-8], len(_logits[-8]), _logits[-8].max(), _logits[-8].min())
+                print('%4d -- %4d learning rate: %f' % (i, _global_step, rate))
                 if i % 10 == 9:
                     train_writer.add_summary(_summary, i)
+                if i % 200 == 199:
+                    saver.save(sess, './logs1/train5/all_data-model')
         train_writer.close()
-                # _n_positive = sess.run(n_positive)
-                # print('### _n_positive: ', _n_positive)
-        # with tf.Session() as sess:
-        #     sess.run(tf.global_variables_initializer())
-        #     try:
-        #         while True:
-        #             print('\n=================== In Session =============================\n')
-        #             _net = sess.run(b_image)
-        #             tmp = (_net[0]).round().astype(np.uint8)
-        #             print(_net[-1][-1])
-        #             print(type(tmp), tmp.shape, tmp.min(), tmp.max())
-        #             img = Image.fromarray(tmp)
-        #             img.show()
-        #             # _logits = sess.run(fnmask)
-        #             # count = sum(i==1. for i in _logits)
-        #             # print('#$#$ count: ', count)
-        #             # print(_logits.shape)
-        #             # print('glocalisations: ', _logits)
-        #             # print('min & max: ', np.min(_logits), np.max(_logits))
-        #             # print('@@@@@@@@@@@@@@@@@@')
-        #             # for i in _logits:
-        #             #     if i > 0.25:
-        #             #         print('$$$ i: ', i)
-        #     except tf.errors.OutOfRangeError:
-        #         pass
 
+VOC_LABELS = {
+    0: None,
+    1: 'aeroplane',
+    2: 'bicycle',
+    3: 'bird',
+    4: 'boat',
+    5: 'bottle',
+    6: 'bus',
+    7: 'car',
+    8: 'cat',
+    9: 'chair',
+    10: 'cow',
+    11: 'diningtable',
+    12: 'dog',
+    13: 'horse',
+    14: 'motorbike',
+    15: 'person',
+    16: 'pottedplant',
+    17: 'sheep',
+    18: 'sofa',
+    19: 'train',
+    20: 'tvmonitor'
+}
 
 def test_after_reshape_list(b_image, b_gclasses, b_glocalisations, b_gscores):
-    print('===================================================')
+    print('============================================================')
     print('===================== After reshaping ======================')
     print('b_image:\n', b_image)
     print('b_gclasses:\n', b_gclasses)
     print('b_glocalisations:\n', b_glocalisations)
     print('b_gscores:\n', b_gscores)
-    print('===================================================')
+    print('============================================================')
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         try:
             while True:
                 print('\n=================== In Session =============================\n')
-                ### b_image information
-                # _b_image = sess.run(b_image)
-                # tmp = (_b_image[0]*255).round().astype(np.uint8)
-                # print(tmp[-1][-1])
-                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
-                # img = Image.fromarray(tmp)
-                # img.show()
-                ## b_gclasses information
+                # b_image information
+                _b_image, _b_gclasses, _b_glocalisations, _b_gscores = \
+                    sess.run([b_image, b_gclasses, b_glocalisations, b_gscores])
+                tmp = (_b_image[-1]*255).round().astype(np.uint8)
+                print('--------------- b_image[0] info ---------------')
+                print('min and max value of b_image[0]:\n')
+                print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                img = Image.fromarray(tmp)
+                img.show()
+                # b_gclasses information
                 # _b_gclasses = sess.run(b_gclasses)  # <class 'tuple'>
-                # tmp = _b_gclasses[4]
-                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                print('--------------- b_gclasses[0] info ---------------')
+                print('class in the last 2 feature map:')
+                print(type(_b_gclasses), len(_b_gclasses))
+                tmp = _b_gclasses[-2]
+                print(type(tmp), tmp.shape, VOC_LABELS[tmp.min()], VOC_LABELS[tmp.max()])
                 # for cls in np.nditer(tmp):
-                #     if cls != 0:
-                #         print(cls)
-                ## b_glocalisations
+                for cls in tmp.flatten():
+                    if cls != 0:
+                        print(VOC_LABELS[cls])
+                # b_glocalisations
                 # _b_glocalisations = sess.run(b_glocalisations)
-                # tmp = _b_glocalisations[-1]
+                print('--------------- b_glocalisations[0] info ---------------')
+                print('localizations in the last 2 feature maps:\n')
+                tmp = _b_glocalisations[-2]
                 # print(tmp[-1])
-                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
-                ## b_gscores
+                print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                # b_gscores
                 # _b_gscores = sess.run(b_gscores)
-                # tmp = _b_gscores[-1]
+                print('--------------- b_gscores[0] info ---------------')
+                print('gscores in the last 2 feature maps')
+                tmp = _b_gscores[-2]
                 # print(tmp[-1])
-                # print(type(tmp), tmp.shape, tmp.min(), tmp.max())
+                print(type(tmp), tmp.shape, tmp.min(), tmp.max())
         except tf.errors.OutOfRangeError:
             pass
 

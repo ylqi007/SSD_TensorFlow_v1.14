@@ -1,0 +1,15 @@
+```Code at #138
+        print('==============================================================')
+        print('preprocessing_name:\n', preprocessing_name)
+        print('==============================================================')
+        print('image_preprocessing_fn:\n', image_preprocessing_fn)
+```
+
+
+Result:
+==============================================================
+preprocessing_name:
+ ssd_300_vgg
+==============================================================
+image_preprocessing_fn:
+ <function get_preprocessing.<locals>.preprocessing_fn at 0x7fa44ce3b268>
